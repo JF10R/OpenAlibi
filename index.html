@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta id="theme-color" name="theme-color" content="#251e2c" />
   <title data-i18n="ui.documentTitle">OpenAlibi — Mystery Logic Grids</title>
   <script>
@@ -38,50 +38,55 @@
 
   <main class="app-shell">
     <aside class="config-panel panel">
-      <div class="panel-heading">
-        <div>
-          <p class="eyebrow" data-i18n="ui.settings">Settings</p>
-          <h2 data-i18n="ui.newCase">New case</h2>
+      <details id="case-settings" class="config-details" open>
+        <summary class="config-summary">
+          <span>
+            <span class="eyebrow" data-i18n="ui.settings">Settings</span>
+            <strong data-i18n="ui.newCase">New case</strong>
+          </span>
+          <span class="config-chevron" aria-hidden="true"></span>
+        </summary>
+
+        <div class="config-content">
+          <div class="form-grid">
+            <label>
+              <span data-i18n="ui.rows">Rows</span>
+              <input id="rows" type="number" min="4" max="12" value="9" />
+            </label>
+            <label>
+              <span data-i18n="ui.columns">Columns</span>
+              <input id="cols" type="number" min="4" max="12" value="9" />
+            </label>
+            <label class="full">
+              <span data-i18n="ui.difficulty">Difficulty</span>
+              <select id="difficulty">
+                <option value="facile" data-i18n="difficulty.facile">Easy</option>
+                <option value="moyen" data-i18n="difficulty.moyen" selected>Medium</option>
+                <option value="difficile" data-i18n="difficulty.difficile">Hard</option>
+                <option value="expert" data-i18n="difficulty.expert">Expert</option>
+              </select>
+            </label>
+            <label class="full range-label">
+              <span><span data-i18n="ui.density">Character density</span> <strong id="density-value">100%</strong></span>
+              <input id="density" type="range" min="55" max="100" step="5" value="100" />
+              <small data-i18n="ui.densityHelp">Maximum: the smaller number of rows or columns.</small>
+            </label>
+            <label class="full">
+              <span data-i18n="ui.seedLabel">Reproducible seed</span>
+              <input id="seed" type="text" maxlength="30" spellcheck="false" autocapitalize="characters" autocomplete="off" enterkeyhint="go" />
+            </label>
+          </div>
+          <button id="generate" class="button primary wide" type="button" data-i18n="ui.generate">Generate a unique case</button>
+
+          <div class="legend">
+            <h3 data-i18n="ui.legendTitle">Map legend</h3>
+            <span><i class="legend-swatch occupiable"></i> <span data-i18n="ui.legendOccupiable">Occupiable cell</span></span>
+            <span><i class="legend-swatch blocked"></i> <span data-i18n="ui.legendBlocked">Blocking object</span></span>
+            <span data-i18n="ui.legendObjects">Chair · bed · rug · puddle — occupiable objects</span>
+            <small data-i18n="ui.legendRightClick">Right-click: add or remove an ×.</small>
+          </div>
         </div>
-      </div>
-
-      <div class="form-grid">
-        <label>
-          <span data-i18n="ui.rows">Rows</span>
-          <input id="rows" type="number" min="4" max="12" value="9" />
-        </label>
-        <label>
-          <span data-i18n="ui.columns">Columns</span>
-          <input id="cols" type="number" min="4" max="12" value="9" />
-        </label>
-        <label class="full">
-          <span data-i18n="ui.difficulty">Difficulty</span>
-          <select id="difficulty">
-            <option value="facile" data-i18n="difficulty.facile">Easy</option>
-            <option value="moyen" data-i18n="difficulty.moyen" selected>Medium</option>
-            <option value="difficile" data-i18n="difficulty.difficile">Hard</option>
-            <option value="expert" data-i18n="difficulty.expert">Expert</option>
-          </select>
-        </label>
-        <label class="full range-label">
-          <span><span data-i18n="ui.density">Character density</span> <strong id="density-value">100%</strong></span>
-          <input id="density" type="range" min="55" max="100" step="5" value="100" />
-          <small data-i18n="ui.densityHelp">Maximum: the smaller number of rows or columns.</small>
-        </label>
-        <label class="full">
-          <span data-i18n="ui.seedLabel">Reproducible seed</span>
-          <input id="seed" type="text" maxlength="30" spellcheck="false" />
-        </label>
-      </div>
-      <button id="generate" class="button primary wide" type="button" data-i18n="ui.generate">Generate a unique case</button>
-
-      <div class="legend">
-        <h3 data-i18n="ui.legendTitle">Map legend</h3>
-        <span><i class="legend-swatch occupiable"></i> <span data-i18n="ui.legendOccupiable">Occupiable cell</span></span>
-        <span><i class="legend-swatch blocked"></i> <span data-i18n="ui.legendBlocked">Blocking object</span></span>
-        <span data-i18n="ui.legendObjects">Chair · bed · rug · puddle — occupiable objects</span>
-        <small data-i18n="ui.legendRightClick">Right-click: add or remove an ×.</small>
-      </div>
+      </details>
     </aside>
 
     <section class="case-panel">
@@ -107,8 +112,15 @@
                 <strong class="board-rule" data-i18n="ui.boardVictimRule">The victim shares a room with exactly one other person.</strong>
               </p>
             </div>
-            <button id="print" class="button ghost compact" type="button" data-i18n="ui.print">Print</button>
+            <div class="board-tools">
+              <div class="board-mode" role="group" aria-label="Board interaction mode" data-i18n-aria-label="ui.boardMode">
+                <button id="mode-place" class="button ghost compact" type="button" aria-pressed="true" data-i18n="ui.modePlace">Place</button>
+                <button id="mode-mark" class="button ghost compact" type="button" aria-pressed="false" data-i18n="ui.modeMark">Mark ×</button>
+              </div>
+              <button id="print" class="button ghost compact" type="button" data-i18n="ui.print">Print</button>
+            </div>
           </div>
+          <p class="board-scroll-hint" data-i18n="ui.boardScrollHint">Swipe to explore larger grids.</p>
           <div class="board-scroll">
             <div id="board" class="board" aria-label="Mystery logic grid" data-i18n-aria-label="ui.boardAria"></div>
           </div>
@@ -126,6 +138,7 @@
       </div>
 
       <section class="resolution-panel panel">
+        <div id="active-character" class="active-character"></div>
         <div class="action-row">
           <button id="check" class="button primary" type="button" data-i18n="ui.check">Check answers</button>
           <button id="hint" class="button secondary" type="button" data-i18n="ui.getHint">Get a hint</button>
@@ -138,11 +151,11 @@
     </section>
   </main>
 
-  <dialog id="rules-dialog" class="modal">
+  <dialog id="rules-dialog" class="modal" aria-labelledby="rules-title">
     <div class="modal-header">
       <div>
         <p class="eyebrow" data-i18n="ui.howToPlay">How to play</p>
-        <h2 data-i18n="ui.rulesTitle">OpenAlibi rules</h2>
+        <h2 id="rules-title" data-i18n="ui.rulesTitle">OpenAlibi rules</h2>
       </div>
       <button id="close-rules" class="button ghost compact" type="button" data-i18n="ui.close">Close</button>
     </div>
@@ -156,9 +169,9 @@
     <p data-i18n="ui.rectangleRule">Rectangular grids use at most min(rows, columns) characters to preserve the row-column constraint.</p>
   </dialog>
 
-  <dialog id="success-dialog" class="modal success-modal">
+  <dialog id="success-dialog" class="modal success-modal" aria-labelledby="success-title" aria-describedby="success-text">
     <p class="eyebrow" data-i18n="ui.caseClosed">Case closed</p>
-    <h2 data-i18n="ui.exactDeduction">Correct deduction</h2>
+    <h2 id="success-title" data-i18n="ui.exactDeduction">Correct deduction</h2>
     <p id="success-text"></p>
     <button id="success-close" class="button primary wide" type="button" data-i18n="ui.continue">Continue</button>
   </dialog>

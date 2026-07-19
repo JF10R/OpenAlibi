@@ -26,9 +26,17 @@ const state = {
   feedback: null,
   hintedFacts: new Set(),
   status: null,
+  interactionMode: 'place',
+  focusedCellKey: null,
 };
 
 const dom = {
+  caseSettings: document.querySelector('#case-settings'),
+  caseHeader: document.querySelector('.case-header'),
+  boardPanel: document.querySelector('.board-panel'),
+  activeCharacter: document.querySelector('#active-character'),
+  placeMode: document.querySelector('#mode-place'),
+  markMode: document.querySelector('#mode-mark'),
   language: document.querySelector('#language'),
   rows: document.querySelector('#rows'),
   cols: document.querySelector('#cols'),
@@ -61,6 +69,77 @@ const dom = {
 
 const THEME_STORAGE_KEY = 'openalibi-theme';
 const LOCALE_STORAGE_KEY = 'openalibi-locale';
+const MOBILE_LAYOUT_QUERY = [
+  '(max-width: 720px)',
+  '(max-width: 960px) and (max-height: 600px) and (orientation: landscape) and (pointer: coarse)',
+].join(', ');
+const mobileLayout = window.matchMedia(MOBILE_LAYOUT_QUERY);
+const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+function scrollIntoView(element) {
+  window.requestAnimationFrame(() => {
+    element.scrollIntoView({
+      behavior: reducedMotion.matches ? 'auto' : 'smooth',
+      block: 'start',
+    });
+  });
+}
+
+function focusBoardCell(key) {
+  state.focusedCellKey = key;
+  window.requestAnimationFrame(() => {
+    dom.board.querySelector(`[data-key="${key}"]`)?.focus({ preventScroll: true });
+  });
+}
+
+function showBoardOnMobile() {
+  if (mobileLayout.matches) scrollIntoView(dom.boardPanel);
+}
+
+function setInteractionMode(mode, announce = true) {
+  state.interactionMode = mode === 'mark' ? 'mark' : 'place';
+  const marking = state.interactionMode === 'mark';
+  dom.board.dataset.mode = state.interactionMode;
+  dom.placeMode.setAttribute('aria-pressed', String(!marking));
+  dom.markMode.setAttribute('aria-pressed', String(marking));
+  if (announce) setStatus(marking ? 'status.markMode' : 'status.placeMode');
+}
+
+function moveBoardFocus(cell, event) {
+  const movements = {
+    ArrowUp: [-1, 0],
+    ArrowDown: [1, 0],
+    ArrowLeft: [0, -1],
+    ArrowRight: [0, 1],
+    Home: [0, -cell.col],
+    End: [0, state.puzzle.cols - cell.col - 1],
+  };
+  const movement = movements[event.key];
+  if (!movement) return;
+  const target = state.puzzle.cellByKey.get(
+    `${cell.row + movement[0]},${cell.col + movement[1]}`,
+  );
+  if (!target) return;
+  event.preventDefault();
+  focusBoardCell(target.key);
+}
+
+function toggleExclusion(cell) {
+  const occupant = state.puzzle.characters.find(
+    (character) => state.placements[character.id] === cell.key,
+  );
+  if (!cell.occupiable || occupant || isAutomaticallyExcluded(cell)) {
+    setStatus('status.markUnavailable', {}, 'warning');
+    return;
+  }
+  const removed = state.exclusions.delete(cell.key);
+  if (!removed) state.exclusions.add(cell.key);
+  state.pendingRemovalKey = null;
+  state.feedback = null;
+  renderBoard();
+  focusBoardCell(cell.key);
+  setStatus(removed ? 'status.markRemoved' : 'status.markAdded', { cellKey: cell.key });
+}
 
 function getInitialLocale() {
   try {
@@ -222,7 +301,7 @@ function applyLocale(locale, persist = true) {
   }
 }
 
-function generate(seed = createRandomSeed()) {
+function generate(seed = createRandomSeed(), focusCase = false) {
   const requestedSeed = String(seed).trim() || createRandomSeed();
   dom.seed.value = requestedSeed;
   dom.generate.disabled = true;
@@ -243,8 +322,12 @@ function generate(seed = createRandomSeed()) {
       state.pendingRemovalKey = null;
       state.feedback = null;
       state.hintedFacts = new Set();
+      state.focusedCellKey = state.puzzle.cells.find((cell) => cell.occupiable)?.key ?? null;
+      setInteractionMode('place', false);
       render();
       setStatus('status.generated', {}, 'success');
+      if (mobileLayout.matches) dom.caseSettings.open = false;
+      if (focusCase) scrollIntoView(dom.caseHeader);
     } catch (error) {
       console.error(error);
       setStatus('errors.generationFailed', {}, 'error');
@@ -284,6 +367,27 @@ function avatarMarkup(character, small = false) {
   return `<span class="avatar ${small ? 'avatar-small' : ''}" style="--avatar-hue:${character.avatarHue}">${initial}${victim}</span>`;
 }
 
+function renderActiveCharacter() {
+  const character = state.puzzle.characters.find(
+    (item) => item.id === state.selectedCharacterId,
+  );
+  if (!character) {
+    dom.activeCharacter.replaceChildren();
+    return;
+  }
+  const clues = state.puzzle.cluesByCharacter[character.id]
+    .map((clue) => clue.description)
+    .join(' • ');
+  dom.activeCharacter.innerHTML = `
+    ${avatarMarkup(character, true)}
+    <span class="active-character-copy">
+      <span class="active-character-label">${translate(state.locale, 'ui.activeCharacter')}</span>
+      <strong>${escapeHtml(character.name)}</strong>
+      <span class="active-character-clues">${escapeHtml(clues)}</span>
+    </span>
+  `;
+}
+
 function renderSuspects() {
   const puzzle = state.puzzle;
   dom.suspects.innerHTML = '';
@@ -292,7 +396,9 @@ function renderSuspects() {
     card.type = 'button';
     card.className = 'suspect-card';
     card.dataset.characterId = character.id;
-    if (state.selectedCharacterId === character.id) card.classList.add('selected');
+    const selected = state.selectedCharacterId === character.id;
+    card.setAttribute('aria-pressed', String(selected));
+    if (selected) card.classList.add('selected');
     if (state.placements[character.id]) card.classList.add('placed');
     const feedback = state.feedback?.characterResults?.[character.id];
     const inferredKiller = state.feedback?.inferredKillerId === character.id;
@@ -325,11 +431,14 @@ function renderSuspects() {
       state.pendingRemovalKey = null;
       state.selectedCharacterId = character.id;
       state.feedback = null;
+      setInteractionMode('place', false);
       renderSuspects();
       renderBoard();
+      showBoardOnMobile();
     });
     dom.suspects.appendChild(card);
   }
+  renderActiveCharacter();
 }
 
 function formatCell(key) {
@@ -352,6 +461,15 @@ function borderClass(puzzle, cell) {
   return classes.join(' ');
 }
 
+function isAutomaticallyExcluded(cell) {
+  return state.puzzle.characters.some((character) => {
+    const placedKey = state.placements[character.id];
+    if (!placedKey) return false;
+    const placedCell = state.puzzle.cellByKey.get(placedKey);
+    return placedCell.row === cell.row || placedCell.col === cell.col;
+  });
+}
+
 function renderBoard() {
   const puzzle = state.puzzle;
   const roomById = new Map(puzzle.rooms.map((room) => [room.id, room]));
@@ -360,12 +478,17 @@ function renderBoard() {
   dom.board.innerHTML = '';
   dom.board.style.setProperty('--rows', puzzle.rows);
   dom.board.style.setProperty('--cols', puzzle.cols);
+  const focusedCellKey = puzzle.cellByKey.has(state.focusedCellKey)
+    ? state.focusedCellKey
+    : puzzle.cells.find((cell) => cell.occupiable)?.key;
+  state.focusedCellKey = focusedCellKey;
 
   for (const cell of puzzle.cells) {
     const element = document.createElement('button');
     element.type = 'button';
     element.className = `cell ${borderClass(puzzle, cell)}`;
     element.dataset.key = cell.key;
+    element.tabIndex = cell.key === focusedCellKey ? 0 : -1;
     element.style.setProperty('--room-color', roomById.get(cell.roomId).color);
     if (!cell.occupiable) element.classList.add('blocked');
     if (cell.object) element.classList.add('has-object', `cell-object-${cell.object}`);
@@ -374,12 +497,7 @@ function renderBoard() {
 
     const occupant = puzzle.characters.find((character) => state.placements[character.id] === cell.key);
     const pendingRemoval = state.pendingRemovalKey === cell.key && Boolean(occupant);
-    const automaticallyExcluded = !occupant && puzzle.characters.some((character) => {
-      const placedKey = state.placements[character.id];
-      if (!placedKey) return false;
-      const placedCell = puzzle.cellByKey.get(placedKey);
-      return placedCell.row === cell.row || placedCell.col === cell.col;
-    });
+    const automaticallyExcluded = !occupant && isAutomaticallyExcluded(cell);
     if (automaticallyExcluded) element.classList.add('auto-excluded');
     if (occupant) {
       element.classList.add('occupied');
@@ -399,12 +517,20 @@ function renderBoard() {
         ),
       })
       : '';
+    const occupantAria = occupant
+      ? translate(
+        state.locale,
+        pendingRemoval ? 'ui.cellRemovalAria' : 'ui.cellOccupantAria',
+        { name: occupant.name },
+      )
+      : '';
     element.setAttribute(
       'aria-label',
       translate(state.locale, 'ui.cellAria', {
         row: cell.row + 1,
         col: cell.col + 1,
         object: objectAria,
+        occupant: occupantAria,
       }),
     );
     element.innerHTML = `
@@ -417,12 +543,20 @@ function renderBoard() {
       <span class="coordinate">${cell.row + 1}.${cell.col + 1}</span>
     `;
 
-    element.addEventListener('click', () => placeSelected(cell));
+    element.addEventListener('focus', () => {
+      state.focusedCellKey = cell.key;
+    });
+    element.addEventListener('keydown', (event) => moveBoardFocus(cell, event));
+    element.addEventListener('click', () => {
+      if (state.interactionMode === 'mark') {
+        toggleExclusion(cell);
+      } else {
+        placeSelected(cell);
+      }
+    });
     element.addEventListener('contextmenu', (event) => {
       event.preventDefault();
-      if (occupant || automaticallyExcluded) return;
-      state.exclusions.has(cell.key) ? state.exclusions.delete(cell.key) : state.exclusions.add(cell.key);
-      renderBoard();
+      toggleExclusion(cell);
     });
     dom.board.appendChild(element);
   }
@@ -468,6 +602,7 @@ function placeSelected(cell) {
       state.pendingRemovalKey = cell.key;
       state.feedback = null;
       renderBoard();
+      focusBoardCell(cell.key);
       setStatus('status.confirmRemoval', {
         cellKey: cell.key,
         characterId: occupant.id,
@@ -478,6 +613,7 @@ function placeSelected(cell) {
     state.pendingRemovalKey = null;
     state.feedback = null;
     render();
+    focusBoardCell(cell.key);
     setStatus('status.characterRemoved');
     return;
   }
@@ -517,6 +653,7 @@ function placeSelected(cell) {
   const next = puzzle.characters.find((character) => !state.placements[character.id]);
   if (next) state.selectedCharacterId = next.id;
   render();
+  focusBoardCell(cell.key);
   setStatus('status.characterPlaced', {
     characterId,
     cellKey: cell.key,
@@ -565,6 +702,8 @@ function clearBoard() {
   state.pendingRemovalKey = null;
   state.feedback = null;
   state.hintedFacts = new Set();
+  state.focusedCellKey = state.puzzle.cells.find((cell) => cell.occupiable)?.key ?? null;
+  setInteractionMode('place', false);
   render();
   setStatus('status.cleared');
 }
@@ -626,11 +765,13 @@ dom.density.addEventListener('input', () => {
   dom.densityValue.textContent = `${dom.density.value}%`;
 });
 dom.language.addEventListener('change', () => applyLocale(dom.language.value));
-dom.generate.addEventListener('click', () => generate(createRandomSeed()));
+dom.placeMode.addEventListener('click', () => setInteractionMode('place'));
+dom.markMode.addEventListener('click', () => setInteractionMode('mark'));
+dom.generate.addEventListener('click', () => generate(createRandomSeed(), true));
 dom.seed.addEventListener('keydown', (event) => {
   if (event.key !== 'Enter') return;
   event.preventDefault();
-  generate(dom.seed.value);
+  generate(dom.seed.value, true);
 });
 dom.check.addEventListener('click', checkAnswers);
 dom.clear.addEventListener('click', clearBoard);
@@ -644,8 +785,12 @@ dom.successClose.addEventListener('click', () => dom.success.close());
 dom.themeToggle.addEventListener('click', () => {
   applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
 });
+mobileLayout.addEventListener('change', (event) => {
+  dom.caseSettings.open = !event.matches;
+});
 
 state.locale = getInitialLocale();
+dom.caseSettings.open = !mobileLayout.matches;
 applyTheme(document.documentElement.dataset.theme, false);
 applyLocale(state.locale, false);
 generate(createRandomSeed());
