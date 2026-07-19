@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta id="theme-color" name="theme-color" content="#251e2c" />
+  <title data-i18n="ui.documentTitle">OpenAlibi — Mystery Logic Grids</title>
+  <script>
+    try {
+      const savedTheme = localStorage.getItem('openalibi-theme');
+      const preferredTheme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      document.documentElement.dataset.theme = savedTheme || preferredTheme;
+    } catch {
+      document.documentElement.dataset.theme = 'light';
+    }
+  </script>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header class="app-header">
+    <div>
+      <p class="eyebrow" data-i18n="ui.brandEyebrow">Mystery logic grids · Grilles d’enquête · Cuadrículas de misterio</p>
+      <h1>Open<span>Alibi</span></h1>
+    </div>
+    <div class="header-actions">
+      <label class="language-control">
+        <span data-i18n="ui.language">Language</span>
+        <select id="language">
+          <option value="en">English</option>
+          <option value="fr">Français</option>
+          <option value="es">Español</option>
+        </select>
+      </label>
+      <button id="theme-toggle" class="button ghost" type="button" aria-pressed="false">Dark mode</button>
+      <button id="open-rules" class="button ghost" type="button" data-i18n="ui.rules">Rules</button>
+    </div>
+  </header>
+
+  <main class="app-shell">
+    <aside class="config-panel panel">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow" data-i18n="ui.settings">Settings</p>
+          <h2 data-i18n="ui.newCase">New case</h2>
+        </div>
+      </div>
+
+      <div class="form-grid">
+        <label>
+          <span data-i18n="ui.rows">Rows</span>
+          <input id="rows" type="number" min="4" max="12" value="9" />
+        </label>
+        <label>
+          <span data-i18n="ui.columns">Columns</span>
+          <input id="cols" type="number" min="4" max="12" value="9" />
+        </label>
+        <label class="full">
+          <span data-i18n="ui.difficulty">Difficulty</span>
+          <select id="difficulty">
+            <option value="facile" data-i18n="difficulty.facile">Easy</option>
+            <option value="moyen" data-i18n="difficulty.moyen" selected>Medium</option>
+            <option value="difficile" data-i18n="difficulty.difficile">Hard</option>
+            <option value="expert" data-i18n="difficulty.expert">Expert</option>
+          </select>
+        </label>
+        <label class="full range-label">
+          <span><span data-i18n="ui.density">Character density</span> <strong id="density-value">100%</strong></span>
+          <input id="density" type="range" min="55" max="100" step="5" value="100" />
+          <small data-i18n="ui.densityHelp">Maximum: the smaller number of rows or columns.</small>
+        </label>
+        <label class="full">
+          <span data-i18n="ui.seedLabel">Reproducible seed</span>
+          <input id="seed" type="text" maxlength="30" spellcheck="false" />
+        </label>
+      </div>
+      <button id="generate" class="button primary wide" type="button" data-i18n="ui.generate">Generate a unique case</button>
+
+      <div class="legend">
+        <h3 data-i18n="ui.legendTitle">Map legend</h3>
+        <span><i class="legend-swatch occupiable"></i> <span data-i18n="ui.legendOccupiable">Occupiable cell</span></span>
+        <span><i class="legend-swatch blocked"></i> <span data-i18n="ui.legendBlocked">Blocking object</span></span>
+        <span data-i18n="ui.legendObjects">Chair · bed · rug · puddle — occupiable objects</span>
+        <small data-i18n="ui.legendRightClick">Right-click: add or remove an ×.</small>
+      </div>
+    </aside>
+
+    <section class="case-panel">
+      <article class="case-header panel">
+        <div>
+          <p class="eyebrow" data-i18n="ui.activeCase">Active case</p>
+          <h2 id="case-title" data-i18n="ui.generating">Generating…</h2>
+          <p id="case-meta" class="meta"></p>
+        </div>
+        <div class="victim-box">
+          <span data-i18n="ui.victim">Victim</span>
+          <strong id="victim-name">—</strong>
+        </div>
+      </article>
+
+      <div class="workspace-grid">
+        <section class="board-panel panel">
+          <div class="board-toolbar">
+            <div>
+              <h3 data-i18n="ui.crimeScene">Crime scene</h3>
+              <p>
+                <span data-i18n="ui.boardIntro">At most one person per row and column.</span>
+                <strong class="board-rule" data-i18n="ui.boardVictimRule">The victim shares a room with exactly one other person.</strong>
+              </p>
+            </div>
+            <button id="print" class="button ghost compact" type="button" data-i18n="ui.print">Print</button>
+          </div>
+          <div class="board-scroll">
+            <div id="board" class="board" aria-label="Mystery logic grid" data-i18n-aria-label="ui.boardAria"></div>
+          </div>
+        </section>
+
+        <section class="suspects-panel panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow" data-i18n="ui.testimonies">Testimonies</p>
+              <h2 data-i18n="ui.characters">Characters</h2>
+            </div>
+          </div>
+          <div id="suspects" class="suspect-list"></div>
+        </section>
+      </div>
+
+      <section class="resolution-panel panel">
+        <div class="action-row">
+          <button id="check" class="button primary" type="button" data-i18n="ui.check">Check answers</button>
+          <button id="hint" class="button secondary" type="button" data-i18n="ui.getHint">Get a hint</button>
+          <button id="clear" class="button ghost" type="button" data-i18n="ui.clear">Clear</button>
+          <button id="reveal" class="button danger" type="button" data-i18n="ui.reveal">Reveal</button>
+          <button id="export-json" class="button ghost" type="button" data-i18n="ui.exportJson">Export JSON</button>
+        </div>
+        <p id="status" class="status" aria-live="polite" data-i18n="ui.initializing">Initializing…</p>
+      </section>
+    </section>
+  </main>
+
+  <dialog id="rules-dialog" class="modal">
+    <div class="modal-header">
+      <div>
+        <p class="eyebrow" data-i18n="ui.howToPlay">How to play</p>
+        <h2 data-i18n="ui.rulesTitle">OpenAlibi rules</h2>
+      </div>
+      <button id="close-rules" class="button ghost compact" type="button" data-i18n="ui.close">Close</button>
+    </div>
+    <ol>
+      <li><strong data-i18n="ui.rule1Title">Place every character.</strong> <span data-i18n="ui.rule1Body">The victim has a name beginning with V and must always be placed last. Every testimony is true.</span></li>
+      <li><strong data-i18n="ui.rule2Title">Respect rows and columns.</strong> <span data-i18n="ui.rule2Body">Two people can never share a row or column.</span></li>
+      <li><strong data-i18n="ui.rule3Title">Respect the map.</strong> <span data-i18n="ui.rule3Body">Blocking furniture cannot be occupied. Chairs, beds, rugs and puddles can.</span></li>
+      <li><strong data-i18n="ui.rule4Title">“Next to” is orthogonal.</strong> <span data-i18n="ui.rule4Body">The cell must be directly above, below, left or right, and in the same room.</span></li>
+      <li><strong data-i18n="ui.rule5Title">The murderer is inferred automatically.</strong> <span data-i18n="ui.rule5Body">When answers are checked, the person alone with the victim is identified as the murderer.</span></li>
+    </ol>
+    <p data-i18n="ui.rectangleRule">Rectangular grids use at most min(rows, columns) characters to preserve the row-column constraint.</p>
+  </dialog>
+
+  <dialog id="success-dialog" class="modal success-modal">
+    <p class="eyebrow" data-i18n="ui.caseClosed">Case closed</p>
+    <h2 data-i18n="ui.exactDeduction">Correct deduction</h2>
+    <p id="success-text"></p>
+    <button id="success-close" class="button primary wide" type="button" data-i18n="ui.continue">Continue</button>
+  </dialog>
+
+  <script type="module" src="./src/app.js"></script>
+</body>
+</html>
