@@ -47,7 +47,6 @@
             <strong data-i18n="ui.caseActions">Case actions</strong>
             <button id="clear" class="button ghost" type="button" data-i18n="ui.clear">Clear</button>
             <button id="reveal" class="button danger" type="button" data-i18n="ui.reveal">Reveal</button>
-            <button id="share-challenge" class="button ghost" type="button" data-i18n="ui.shareChallenge">Copy challenge link</button>
             <button id="export-json" class="button ghost" type="button" data-i18n="ui.exportJson">Export JSON</button>
             <button id="print" class="button ghost" type="button" data-i18n="ui.print">Print</button>
           </div>
@@ -133,10 +132,14 @@
 
     <section class="case-panel">
       <article class="case-header panel">
-        <div>
+        <div class="case-header-copy">
           <p class="eyebrow" data-i18n="ui.activeCase">Active case</p>
           <h2 id="case-title" data-i18n="ui.generating">Generating…</h2>
           <p id="case-meta" class="meta"></p>
+        </div>
+        <div class="case-quick-actions">
+          <button id="new-grid" class="button secondary compact" type="button" data-i18n="ui.newGrid">New grid</button>
+          <button id="share-challenge" class="button ghost compact" type="button" data-i18n="ui.shareChallenge">Share</button>
         </div>
         <div class="victim-box">
           <span data-i18n="ui.victim">Victim</span>

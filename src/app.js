@@ -93,6 +93,7 @@ const dom = {
   visualAidsEnabled: document.querySelector('#visual-aids-enabled'),
   colorVisionMode: document.querySelector('#color-vision-mode'),
   generate: document.querySelector('#generate'),
+  newGrid: document.querySelector('#new-grid'),
   title: document.querySelector('#case-title'),
   meta: document.querySelector('#case-meta'),
   caseRule: document.querySelector('#case-rule'),
@@ -564,6 +565,7 @@ function generate(seed = createRandomSeed(), focusCase = false) {
   const requestedSeed = String(seed).trim() || createRandomSeed();
   dom.seed.value = requestedSeed;
   dom.generate.disabled = true;
+  dom.newGrid.disabled = true;
   setStatus('status.generating');
   window.setTimeout(() => {
     try {
@@ -593,6 +595,7 @@ function generate(seed = createRandomSeed(), focusCase = false) {
       setStatus('errors.generationFailed', {}, 'error');
     } finally {
       dom.generate.disabled = false;
+      dom.newGrid.disabled = false;
     }
   }, 20);
 }
@@ -1209,6 +1212,7 @@ dom.saveTheory.addEventListener('click', saveCurrentTheory);
 dom.loadTheory.addEventListener('click', loadCurrentTheory);
 dom.clearTheory.addEventListener('click', clearCurrentTheory);
 dom.generate.addEventListener('click', () => generate(dom.seed.value, true));
+dom.newGrid.addEventListener('click', () => generate(createRandomSeed(), true));
 dom.randomizeSeed.addEventListener('click', () => {
   dom.seed.value = createRandomSeed();
   dom.seed.focus();

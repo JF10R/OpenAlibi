@@ -33,6 +33,14 @@ assert.match(files.index, /class="brand-mark"/, 'the header must use a concise b
 assert.match(files.index, /id="visual-aids-enabled"/, 'players must be able to enable enhanced visual labels');
 assert.match(files.index, /id="color-vision-mode"/, 'players must be able to select a color-vision profile');
 assert.match(files.index, /id="share-challenge"/, 'players must be able to copy a reproducible challenge link');
+const caseHeader = files.index.match(/<article class="case-header panel">([\s\S]+?)<\/article>/)?.[1] ?? '';
+assert.match(caseHeader, /id="new-grid"/, 'a fresh grid must be one action away from the active case');
+assert.match(caseHeader, /id="share-challenge"/, 'sharing must be directly available beside the active case');
+const quickCaseActions = caseHeader.match(/<div class="case-quick-actions">([\s\S]+?)<\/div>/)?.[1] ?? '';
+assert.equal((quickCaseActions.match(/<button/g) ?? []).length, 2, 'quick case actions must stay limited to new and share');
+assert.match(files.styles, /\.case-quick-actions \.button \{[^}]*min-height: 44px;/, 'quick case actions must remain touch-friendly');
+const appMenu = files.index.match(/<details id="app-menu"([\s\S]+?)<\/details>/)?.[1] ?? '';
+assert.doesNotMatch(appMenu, /share-challenge/, 'sharing must not be duplicated in the secondary menu');
 assert.match(files.index, /id="case-settings"/, 'case settings must use a mobile-friendly disclosure');
 assert.match(files.index, /id="mode-place"/, 'the board must expose an explicit placement mode');
 assert.match(files.index, /id="mode-mark"/, 'touch users must have an explicit exclusion mode');
@@ -61,6 +69,7 @@ assert.match(files.accessibility, /openalibi-color-vision/, 'color-vision prefer
 assert.match(files.app, /publishFeatureEvent\('accessibility-changed'/, 'optional features must receive accessibility changes');
 assert.match(files.app, /openalibi-locale/, 'the selected locale must be persisted');
 assert.match(files.app, /openalibi-current-draft/, 'the active case must be restored across sessions');
+assert.match(files.app, /dom\.newGrid\.addEventListener\('click',[\s\S]*generate\(createRandomSeed\(\), true\)/, 'the new-grid action must generate immediately with a fresh seed');
 assert.match(files.app, /createFeatureHost\(APP_FEATURES/, 'optional features must use the public host contract');
 assert.match(files.app, /archetype:\s*state\.puzzle\.caseType/, 'feature events must expose the generated investigation archetype');
 assert.match(files.app, /mounts:\s*featureMounts/, 'optional features must receive stable DOM mounts');
