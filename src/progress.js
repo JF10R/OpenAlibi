@@ -1,10 +1,34 @@
 const DRAFT_VERSION = 1;
 const HISTORY_LIMIT = 80;
+export const THEORY_SLOT_COUNT = 3;
 
 function cloneSetsByCharacter(source = {}) {
   return Object.fromEntries(
     Object.entries(source).map(([characterId, cells]) => [characterId, new Set(cells)]),
   );
+}
+
+function cloneTheory(theory) {
+  if (!theory) return null;
+  return {
+    placements: { ...theory.placements },
+    tentativePlacements: { ...theory.tentativePlacements },
+    manualExclusionsByCharacter: cloneSetsByCharacter(theory.manualExclusionsByCharacter),
+    candidateCellsByCharacter: cloneSetsByCharacter(theory.candidateCellsByCharacter),
+    selectedCharacterId: theory.selectedCharacterId ?? null,
+  };
+}
+
+function captureTheory(progress) {
+  return cloneTheory(progress);
+}
+
+function normalizeTheoryIndex(index) {
+  const normalized = Number(index);
+  if (!Number.isInteger(normalized) || normalized < 0 || normalized >= THEORY_SLOT_COUNT) {
+    throw new RangeError('Invalid theory slot.');
+  }
+  return normalized;
 }
 
 export function cloneProgress(progress) {
@@ -15,6 +39,10 @@ export function cloneProgress(progress) {
     candidateCellsByCharacter: cloneSetsByCharacter(progress.candidateCellsByCharacter),
     hintedFacts: new Set(progress.hintedFacts),
     selectedCharacterId: progress.selectedCharacterId ?? null,
+    theorySlots: Array.from(
+      { length: THEORY_SLOT_COUNT },
+      (_, index) => cloneTheory(progress.theorySlots?.[index]),
+    ),
   };
 }
 
@@ -32,6 +60,52 @@ export function createProgress(puzzle) {
     ),
     hintedFacts: new Set(),
     selectedCharacterId,
+    theorySlots: Array(THEORY_SLOT_COUNT).fill(null),
+  };
+}
+
+export function saveTheorySlot(progress, index) {
+  const normalizedIndex = normalizeTheoryIndex(index);
+  const next = cloneProgress(progress);
+  next.theorySlots[normalizedIndex] = captureTheory(progress);
+  return next;
+}
+
+export function loadTheorySlot(progress, index) {
+  const normalizedIndex = normalizeTheoryIndex(index);
+  const theory = progress.theorySlots?.[normalizedIndex];
+  if (!theory) throw new Error('This theory slot is empty.');
+  const next = cloneProgress(progress);
+  const workspace = cloneTheory(theory);
+  next.placements = workspace.placements;
+  next.tentativePlacements = workspace.tentativePlacements;
+  next.manualExclusionsByCharacter = workspace.manualExclusionsByCharacter;
+  next.candidateCellsByCharacter = workspace.candidateCellsByCharacter;
+  next.selectedCharacterId = workspace.selectedCharacterId;
+  return next;
+}
+
+export function clearTheorySlot(progress, index) {
+  const normalizedIndex = normalizeTheoryIndex(index);
+  const next = cloneProgress(progress);
+  next.theorySlots[normalizedIndex] = null;
+  return next;
+}
+
+function encodeTheory(theory) {
+  if (!theory) return null;
+  return {
+    placements: { ...theory.placements },
+    tentativePlacements: { ...theory.tentativePlacements },
+    manualExclusionsByCharacter: Object.fromEntries(
+      Object.entries(theory.manualExclusionsByCharacter)
+        .map(([characterId, cells]) => [characterId, [...cells]]),
+    ),
+    candidateCellsByCharacter: Object.fromEntries(
+      Object.entries(theory.candidateCellsByCharacter)
+        .map(([characterId, cells]) => [characterId, [...cells]]),
+    ),
+    selectedCharacterId: theory.selectedCharacterId ?? null,
   };
 }
 
@@ -49,10 +123,14 @@ function encodeProgress(progress) {
     ),
     hintedFacts: [...progress.hintedFacts],
     selectedCharacterId: progress.selectedCharacterId ?? null,
+    theorySlots: Array.from(
+      { length: THEORY_SLOT_COUNT },
+      (_, index) => encodeTheory(progress.theorySlots?.[index]),
+    ),
   };
 }
 
-function sanitizeProgress(rawProgress, puzzle) {
+function sanitizeProgress(rawProgress, puzzle, includeTheories = true) {
   const characterIds = new Set(puzzle.characters.map((character) => character.id));
   const cellKeys = new Set(puzzle.cells.map((cell) => cell.key));
   const progress = createProgress(puzzle);
@@ -77,6 +155,13 @@ function sanitizeProgress(rawProgress, puzzle) {
   );
   if (characterIds.has(rawProgress?.selectedCharacterId)) {
     progress.selectedCharacterId = rawProgress.selectedCharacterId;
+  }
+  if (includeTheories) {
+    progress.theorySlots = Array.from({ length: THEORY_SLOT_COUNT }, (_, index) => {
+      const rawTheory = rawProgress?.theorySlots?.[index];
+      if (!rawTheory) return null;
+      return captureTheory(sanitizeProgress(rawTheory, puzzle, false));
+    });
   }
   return progress;
 }

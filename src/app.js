@@ -14,12 +14,15 @@ import { createChallengeUrl, parseChallengeUrl } from './challenge.js';
 import { APP_FEATURES } from './feature-config.js';
 import { createFeatureHost } from './feature-host.js';
 import {
+  clearTheorySlot,
   cloneProgress,
   commitHistory,
   createHistory,
   createProgress,
   redoHistory,
   restoreDraft,
+  loadTheorySlot,
+  saveTheorySlot,
   serializeDraft,
   undoHistory,
 } from './progress.js';
@@ -39,6 +42,7 @@ const state = {
   tentativePlacements: {},
   manualExclusionsByCharacter: {},
   candidateCellsByCharacter: {},
+  theorySlots: [],
   pendingRemovalKey: null,
   feedback: null,
   hintedFacts: new Set(),
@@ -59,6 +63,10 @@ const dom = {
   markMode: document.querySelector('#mode-mark'),
   candidateMode: document.querySelector('#mode-candidate'),
   tentativeMode: document.querySelector('#mode-tentative'),
+  theorySlot: document.querySelector('#theory-slot'),
+  saveTheory: document.querySelector('#save-theory'),
+  loadTheory: document.querySelector('#load-theory'),
+  clearTheory: document.querySelector('#clear-theory'),
   boardViewMode: document.querySelector('#board-view-mode'),
   language: document.querySelector('#language'),
   rows: document.querySelector('#rows'),
@@ -68,6 +76,7 @@ const dom = {
   difficulty: document.querySelector('#difficulty'),
   caseType: document.querySelector('#case-type'),
   seed: document.querySelector('#seed'),
+  randomizeSeed: document.querySelector('#randomize-seed'),
   generate: document.querySelector('#generate'),
   title: document.querySelector('#case-title'),
   meta: document.querySelector('#case-meta'),
@@ -178,6 +187,7 @@ function progressFromState() {
     candidateCellsByCharacter: state.candidateCellsByCharacter,
     hintedFacts: state.hintedFacts,
     selectedCharacterId: state.selectedCharacterId,
+    theorySlots: state.theorySlots,
   };
 }
 
@@ -189,6 +199,7 @@ function applyProgress(progress) {
   state.candidateCellsByCharacter = copy.candidateCellsByCharacter;
   state.hintedFacts = copy.hintedFacts;
   state.selectedCharacterId = copy.selectedCharacterId;
+  state.theorySlots = copy.theorySlots;
   state.pendingRemovalKey = null;
   state.feedback = null;
 }
@@ -378,63 +389,98 @@ function applyTheme(theme, persist = true) {
   }
 }
 
+const ROOM_SYMBOLS = Object.freeze({
+  livingRoom: '⌂',
+  diningRoom: '◉',
+  library: '≡',
+  gallery: '◇',
+  workshop: '⚒',
+  meetingRoom: '◎',
+  indoorGarden: '✿',
+  kitchen: '♨',
+  office: '▤',
+  bedroom: '▰',
+  sunroom: '☀',
+  archives: '▥',
+  laboratory: '⚗',
+  musicRoom: '♫',
+  studio: '✎',
+  cafe: '☕',
+  bathroom: '≈',
+  laundryRoom: '◌',
+  storageRoom: '□',
+  vestibule: '⇥',
+  dressingRoom: '♢',
+  warehouse: '▦',
+  hall: '↔',
+});
+
 const OBJECT_SVGS = {
   chair: `
     <svg viewBox="0 0 32 32" aria-hidden="true">
-      <rect x="7" y="8" width="18" height="18" rx="4" />
-      <path d="M8 10h16M10 13h12v10H10z" />
-      <circle cx="10" cy="25" r="1.2" /><circle cx="22" cy="25" r="1.2" />
+      <rect class="object-fill" x="8" y="9" width="16" height="16" rx="4" />
+      <path d="M8 10h16M10 14h12v9H10zM7 14v8M25 14v8" />
+      <path class="object-accent" d="M11 7h10l3 3H8l3-3Z" />
+      <circle cx="10" cy="26" r="1.3" /><circle cx="22" cy="26" r="1.3" />
     </svg>`,
   bed: `
-    <svg viewBox="0 0 32 32" aria-hidden="true">
-      <rect x="3" y="5" width="26" height="22" rx="3" />
-      <rect x="6" y="8" width="8" height="16" rx="2" />
-      <path d="M16 7v18M19 11h7M19 16h7M19 21h7" opacity=".6" />
+    <svg viewBox="0 0 32 32" preserveAspectRatio="none" aria-hidden="true">
+      <rect class="object-fill" x="3" y="5" width="26" height="22" rx="3" />
+      <rect class="object-accent" x="6" y="8" width="8" height="16" rx="2.5" />
+      <path d="M16 7v18M19 10h7M19 16h7M19 22h7M4 25h24" />
     </svg>`,
   carpet: `
-    <svg viewBox="0 0 32 32" aria-hidden="true">
-      <rect x="4" y="6" width="24" height="20" rx="3" />
-      <path d="m16 9 8 7-8 7-8-7 8-7Z" />
+    <svg viewBox="0 0 32 32" preserveAspectRatio="none" aria-hidden="true">
+      <rect class="object-fill" x="4" y="6" width="24" height="20" rx="2" />
+      <rect x="6.5" y="8.5" width="19" height="15" rx="1" />
+      <path class="object-accent" d="m16 9 8 7-8 7-8-7 8-7Z" />
+      <path d="m16 12 4.5 4-4.5 4-4.5-4 4.5-4Z" />
       <path d="M4 10h-2M4 14h-2M4 18h-2M4 22h-2M28 10h2M28 14h2M28 18h2M28 22h2" />
     </svg>`,
   puddle: `
     <svg viewBox="0 0 32 32" aria-hidden="true">
-      <path d="M5 18c0-3 3-4 6-5 2-1 3-5 7-4 3 1 3 4 5 5 3 1 5 2 4 5-1 4-6 5-11 5S5 23 5 18Z" />
-      <path d="M11 17c2-2 6-3 9-1M14 21c2 1 5 0 7-1" opacity=".55" />
+      <path class="object-fill" d="M4 18c0-3 3-5 7-5 2-1 3-5 7-4 3 1 3 4 6 5 3 1 5 3 4 6-1 4-7 5-12 5S4 23 4 18Z" />
+      <path d="M10 17c3-2 7-3 11-1M13 21c3 1 6 0 9-2" />
+      <circle class="object-accent" cx="9" cy="20" r="1.2" />
     </svg>`,
   table: `
-    <svg viewBox="0 0 32 32" aria-hidden="true">
-      <ellipse cx="16" cy="15" rx="11" ry="8" />
-      <ellipse cx="16" cy="15" rx="7" ry="4.5" opacity=".45" />
-      <circle cx="8" cy="15" r="1" /><circle cx="24" cy="15" r="1" />
+    <svg viewBox="0 0 32 32" preserveAspectRatio="none" aria-hidden="true">
+      <ellipse class="object-fill" cx="16" cy="15" rx="12" ry="8.5" />
+      <ellipse cx="16" cy="15" rx="8.5" ry="5" />
+      <circle class="object-accent" cx="11" cy="15" r="2" /><circle class="object-accent" cx="21" cy="15" r="2" />
+      <path d="M7 22v4M25 22v4" />
     </svg>`,
   shelf: `
-    <svg viewBox="0 0 32 32" aria-hidden="true">
-      <rect x="4" y="8" width="24" height="16" rx="2" />
-      <path d="M8 8v16M13 8v16M19 8v16M24 8v16" />
-      <path d="M5 11h22M5 21h22" opacity=".55" />
+    <svg viewBox="0 0 32 32" preserveAspectRatio="none" aria-hidden="true">
+      <rect class="object-fill" x="3" y="7" width="26" height="18" rx="2" />
+      <path d="M4 11h24M4 21h24M8 11v10M13 11v10M19 11v10M24 11v10" />
+      <path class="object-accent" d="M9 13h3v6H9zM15 13h3v6h-3zM21 13h2v6h-2z" />
     </svg>`,
   plant: `
     <svg viewBox="0 0 32 32" aria-hidden="true">
-      <path d="M11 21h10l-1 7h-8l-1-7Z" />
-      <path d="M16 21V9M16 14c-5 0-7-3-7-6 4 0 7 2 7 6ZM16 17c5 0 7-3 7-6-4 0-7 2-7 6ZM16 11c0-4 2-6 5-7 1 4-1 7-5 7Z" />
+      <path class="object-accent" d="M10 21h12l-2 7h-8l-2-7Z" />
+      <path d="M16 22V8" />
+      <path class="object-fill" d="M16 14c-5 0-8-3-8-7 5 0 8 2 8 7ZM16 18c5 0 8-3 8-7-5 0-8 2-8 7ZM16 11c0-5 2-8 6-9 1 5-1 8-6 9Z" />
     </svg>`,
   counter: `
-    <svg viewBox="0 0 32 32" aria-hidden="true">
-      <rect x="3" y="8" width="26" height="16" rx="3" />
-      <path d="M5 12h22M9 15h10v6H9z" />
-      <circle cx="24" cy="18" r="2" />
+    <svg viewBox="0 0 32 32" preserveAspectRatio="none" aria-hidden="true">
+      <rect class="object-fill" x="3" y="7" width="26" height="18" rx="3" />
+      <path d="M4 11h24M8 15h11v7H8z" />
+      <circle class="object-accent" cx="24" cy="18" r="2.5" />
+      <path d="M24 15v-3h3" />
     </svg>`,
   tv: `
     <svg viewBox="0 0 32 32" aria-hidden="true">
-      <rect x="4" y="10" width="24" height="11" rx="2" />
-      <path d="M7 13h18v5H7zM11 24h10M16 21v3" />
-      <circle cx="26" cy="19" r=".8" />
+      <rect class="object-fill" x="3" y="8" width="26" height="15" rx="2.5" />
+      <rect class="object-accent" x="6" y="11" width="20" height="9" rx="1" />
+      <path d="M11 27h10M16 23v4M10 5l6 3 6-3" />
     </svg>`,
   statue: `
     <svg viewBox="0 0 32 32" aria-hidden="true">
-      <circle cx="16" cy="8" r="4" />
-      <path d="M10 20c0-5 2-8 6-8s6 3 6 8M8 20h16l-2 4H10l-2-4ZM11 24h10v4H11z" />
+      <circle class="object-fill" cx="16" cy="7" r="4" />
+      <path class="object-fill" d="M10 20c0-6 2-9 6-9s6 3 6 9H10Z" />
+      <path d="M13 12v5M19 12v5M8 20h16l-2 4H10l-2-4Z" />
+      <path class="object-accent" d="M11 24h10v4H11z" />
     </svg>`,
 };
 
@@ -547,7 +593,47 @@ function render() {
   renderHeader();
   renderSuspects();
   renderBoard();
+  renderTheoryControls();
   setBoardViewMode(state.boardViewMode);
+}
+
+function renderTheoryControls() {
+  const selectedIndex = Number(dom.theorySlot.value);
+  const hasSavedTheory = Boolean(state.theorySlots[selectedIndex]);
+  dom.loadTheory.disabled = !hasSavedTheory;
+  dom.clearTheory.disabled = !hasSavedTheory;
+  for (const [index, option] of [...dom.theorySlot.options].entries()) {
+    option.textContent = translate(
+      state.locale,
+      state.theorySlots[index] ? 'ui.theorySlotSaved' : 'ui.theorySlotEmpty',
+      { slot: String.fromCharCode(65 + index) },
+    );
+  }
+}
+
+function saveCurrentTheory() {
+  const index = Number(dom.theorySlot.value);
+  commitProgress(() => applyProgress(saveTheorySlot(progressFromState(), index)));
+  renderTheoryControls();
+  setStatus('status.theorySaved', { slot: String.fromCharCode(65 + index) }, 'success');
+}
+
+function loadCurrentTheory() {
+  const index = Number(dom.theorySlot.value);
+  if (!state.theorySlots[index]) {
+    setStatus('status.theoryEmpty', {}, 'warning');
+    return;
+  }
+  commitProgress(() => applyProgress(loadTheorySlot(progressFromState(), index)));
+  render();
+  setStatus('status.theoryLoaded', { slot: String.fromCharCode(65 + index) }, 'success');
+}
+
+function clearCurrentTheory() {
+  const index = Number(dom.theorySlot.value);
+  commitProgress(() => applyProgress(clearTheorySlot(progressFromState(), index)));
+  renderTheoryControls();
+  setStatus('status.theoryCleared', { slot: String.fromCharCode(65 + index) });
 }
 
 function renderHeader() {
@@ -841,15 +927,26 @@ function renderBoard() {
     const surface = document.createElement('span');
     surface.className = `room-surface room-pattern-${room.pattern ?? 'textile'}`;
     surface.style.setProperty('--room-color', room.color);
+    surface.dataset.roomType = room.type;
     surface.dataset.neighbors = room.neighborIds?.join(',') ?? '';
     positionRoomLayer(surface, room);
     dom.board.appendChild(surface);
 
     const label = document.createElement('span');
     label.className = 'room-label';
+    label.dataset.compact = String(room.width <= 2 || room.height <= 2);
+    label.setAttribute('aria-label', room.name);
+    const plaque = document.createElement('span');
+    plaque.className = 'room-plaque';
+    const symbol = document.createElement('span');
+    symbol.className = 'room-symbol';
+    symbol.setAttribute('aria-hidden', 'true');
+    symbol.textContent = ROOM_SYMBOLS[room.type] ?? '⌂';
     const labelText = document.createElement('span');
+    labelText.className = 'room-name';
     labelText.textContent = room.name;
-    label.appendChild(labelText);
+    plaque.append(symbol, labelText);
+    label.appendChild(plaque);
     positionRoomLayer(label, room);
     dom.board.appendChild(label);
   }
@@ -1092,10 +1189,18 @@ dom.placeMode.addEventListener('click', () => setInteractionMode('place'));
 dom.markMode.addEventListener('click', () => setInteractionMode('mark'));
 dom.candidateMode.addEventListener('click', () => setInteractionMode('candidate'));
 dom.tentativeMode.addEventListener('click', () => setInteractionMode('tentative'));
+dom.theorySlot.addEventListener('change', renderTheoryControls);
+dom.saveTheory.addEventListener('click', saveCurrentTheory);
+dom.loadTheory.addEventListener('click', loadCurrentTheory);
+dom.clearTheory.addEventListener('click', clearCurrentTheory);
 dom.boardViewMode.addEventListener('click', () => {
   setBoardViewMode(state.boardViewMode === 'fit' ? 'zoom' : 'fit');
 });
-dom.generate.addEventListener('click', () => generate(createRandomSeed(), true));
+dom.generate.addEventListener('click', () => generate(dom.seed.value, true));
+dom.randomizeSeed.addEventListener('click', () => {
+  dom.seed.value = createRandomSeed();
+  dom.seed.focus();
+});
 dom.seed.addEventListener('keydown', (event) => {
   if (event.key !== 'Enter') return;
   event.preventDefault();

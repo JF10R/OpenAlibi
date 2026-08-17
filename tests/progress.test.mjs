@@ -1,10 +1,14 @@
 import assert from 'node:assert/strict';
 import {
+  clearTheorySlot,
+  cloneProgress,
   commitHistory,
   createHistory,
   createProgress,
+  loadTheorySlot,
   redoHistory,
   restoreDraft,
+  saveTheorySlot,
   serializeDraft,
   undoHistory,
 } from '../src/progress.js';
@@ -27,20 +31,40 @@ progress.manualExclusionsByCharacter[suspect.id].add(thirdCell.key);
 progress.candidateCellsByCharacter[suspect.id].add(secondCell.key);
 progress.hintedFacts.add(`${suspect.id}:room`);
 
-const serialized = serializeDraft(puzzle, progress);
+const withFirstTheory = saveTheorySlot(progress, 0);
+const alternative = cloneProgress(withFirstTheory);
+alternative.placements[suspect.id] = thirdCell.key;
+alternative.tentativePlacements[suspect.id] = firstCell.key;
+alternative.candidateCellsByCharacter[suspect.id] = new Set([firstCell.key, thirdCell.key]);
+const withTwoTheories = saveTheorySlot(alternative, 1);
+const loadedFirstTheory = loadTheorySlot(withTwoTheories, 0);
+assert.equal(loadedFirstTheory.placements[suspect.id], firstCell.key, 'loading theory A must restore its confirmed placement');
+assert.equal(loadedFirstTheory.tentativePlacements[suspect.id], secondCell.key, 'loading theory A must restore its trial placement');
+assert.deepEqual(
+  [...loadedFirstTheory.candidateCellsByCharacter[suspect.id]],
+  [secondCell.key],
+  'loading a theory must restore its candidate combination',
+);
+assert.ok(loadedFirstTheory.theorySlots[1], 'loading one theory must preserve the other saved theories');
+assert.equal(clearTheorySlot(loadedFirstTheory, 0).theorySlots[0], null, 'a theory slot must be independently clearable');
+
+const serialized = serializeDraft(puzzle, withTwoTheories);
 const restored = restoreDraft(serialized, puzzle);
 assert.equal(restored.puzzleId, puzzle.id);
-assert.deepEqual(restored.progress.placements, progress.placements);
-assert.deepEqual(restored.progress.tentativePlacements, progress.tentativePlacements);
+assert.deepEqual(restored.progress.placements, alternative.placements);
+assert.deepEqual(restored.progress.tentativePlacements, alternative.tentativePlacements);
 assert.deepEqual(
   [...restored.progress.manualExclusionsByCharacter[suspect.id]],
   [thirdCell.key],
 );
 assert.deepEqual(
   [...restored.progress.candidateCellsByCharacter[suspect.id]],
-  [secondCell.key],
+  [firstCell.key, thirdCell.key],
 );
 assert.deepEqual([...restored.progress.hintedFacts], [`${suspect.id}:room`]);
+assert.equal(restored.progress.theorySlots.length, 3, 'drafts must persist three theory slots');
+assert.equal(restored.progress.theorySlots[0].placements[suspect.id], firstCell.key);
+assert.equal(restored.progress.theorySlots[1].placements[suspect.id], thirdCell.key);
 assert.deepEqual(restored.generation, {
   rows: puzzle.rows,
   cols: puzzle.cols,

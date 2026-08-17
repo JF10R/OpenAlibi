@@ -28,12 +28,16 @@ assert.match(files.index, /id="mode-place"/, 'the board must expose an explicit 
 assert.match(files.index, /id="mode-mark"/, 'touch users must have an explicit exclusion mode');
 assert.match(files.index, /id="mode-candidate"/, 'players must have a per-character pencil mode');
 assert.match(files.index, /id="mode-tentative"/, 'players must have a tentative placement mode');
+assert.match(files.index, /id="theory-slot"/, 'players must be able to select a saved theory workspace');
+assert.match(files.index, /id="save-theory"/, 'players must be able to save a complete hypothetical combination');
+assert.match(files.index, /id="load-theory"/, 'players must be able to compare saved hypothetical combinations');
 assert.match(files.index, /id="undo"/, 'the action bar must expose undo');
 assert.match(files.index, /id="redo"/, 'the action bar must expose redo');
 assert.match(files.index, /id="case-type"/, 'settings must expose investigation archetypes');
 assert.match(files.index, /id="board-view-mode"/, 'small screens must switch between fit and zoom modes');
 assert.match(files.index, /id="active-character"/, 'mobile players must retain selected-character context near the board');
 assert.match(files.index, /enterkeyhint="go"/, 'the seed field must expose a mobile submit key');
+assert.match(files.index, /id="randomize-seed"/, 'seed randomization must be an explicit action');
 assert.match(files.styles, /:root\[data-theme=['"]dark['"]\]/, 'a dark color theme must be defined');
 assert.match(files.app, /openalibi-theme/, 'the selected theme must be persisted');
 assert.match(files.app, /openalibi-locale/, 'the selected locale must be persisted');
@@ -47,6 +51,7 @@ assert.match(files.challenge, /createChallengeUrl/, 'shared challenges must use 
 assert.match(files.challenge, /parseChallengeUrl/, 'shared challenge settings must be validated before generation');
 assert.match(files.app, /serializeDraft/, 'progress persistence must use the validated draft serializer');
 assert.match(files.app, /commitHistory/, 'player mutations must be recorded in undo history');
+assert.match(files.app, /saveTheorySlot/, 'theory workspaces must use the validated progress model');
 assert.match(files.app, /ResizeObserver/, 'board fit must react to viewport and panel size changes');
 assert.match(files.app, /fitBoardToViewport/, 'board sizing must use available width and height');
 assert.match(files.index, /id="language"/, 'the interface must expose a language selector');
@@ -69,6 +74,7 @@ assert.match(files.app, /element\.tabIndex\s*=/, 'board cells must use roving ke
 assert.match(files.app, /moveBoardFocus\(cell, event\)/, 'arrow keys must navigate between board cells');
 assert.match(files.i18n, /SUPPORTED_LOCALES/, 'the localization module must declare supported locales');
 assert.match(files.app, /createRandomSeed/, 'the interface must use the collision-resistant seed generator');
+assert.match(files.app, /dom\.generate\.addEventListener\('click', \(\) => generate\(dom\.seed\.value, true\)\)/, 'generation must respect the visible seed');
 assert.doesNotMatch(files.app, /Math\.random\(\)\.toString\(36\)/, 'the interface must not derive seeds from Math.random');
 
 assert.doesNotMatch(files.index, /killer-select/, 'the killer dropdown must be removed');
@@ -100,10 +106,12 @@ assert.match(
   'confirmed removal must remove the actual occupant',
 );
 assert.match(files.app, /\btv:\s*`/, 'the interface must draw televisions explicitly');
+assert.match(files.app, /ROOM_SYMBOLS/, 'room labels must expose recognizable type-specific symbols');
+assert.match(files.app, /object-fill/, 'object drawings must use layered vector surfaces');
 assert.match(files.app, /object-entity/, 'multi-cell objects must render as unified visual entities');
 assert.match(files.styles, /\.candidate-notes/, 'per-character pencil notes must remain visible in cells');
 assert.match(files.styles, /\.ghost-avatar/, 'tentative placements must be visually distinct');
-assert.match(files.styles, /@media \(min-width: 1121px\) and \(min-height: 700px\)/, 'desktop must use a viewport-constrained workspace');
+assert.match(files.styles, /@media \(min-width: 1121px\) and \(min-height: 820px\)/, 'tall desktop viewports must use a viewport-constrained workspace');
 assert.match(files.styles, /body\s*\{[^}]*overflow:\s*hidden/s, 'desktop mode must avoid page scrolling');
 assert.match(
   files.app,

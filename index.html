@@ -80,10 +80,13 @@
               <input id="density" type="range" min="55" max="100" step="5" value="90" />
               <small data-i18n="ui.densityHelp">A difficulty profile is applied automatically; this control overrides it.</small>
             </label>
-            <label class="full">
-              <span data-i18n="ui.seedLabel">Reproducible seed</span>
-              <input id="seed" type="text" maxlength="30" spellcheck="false" autocapitalize="characters" autocomplete="off" enterkeyhint="go" />
-            </label>
+            <div class="form-field full">
+              <label for="seed" data-i18n="ui.seedLabel">Reproducible seed</label>
+              <span class="seed-control">
+                <input id="seed" type="text" maxlength="30" spellcheck="false" autocapitalize="characters" autocomplete="off" enterkeyhint="go" />
+                <button id="randomize-seed" class="button ghost compact" type="button" data-i18n="ui.randomizeSeed">New seed</button>
+              </span>
+            </div>
           </div>
           <button id="generate" class="button primary wide" type="button" data-i18n="ui.generate">Generate a unique case</button>
 
@@ -151,6 +154,17 @@
 
       <section class="resolution-panel panel">
         <div id="active-character" class="active-character"></div>
+        <div class="theory-controls" role="group" aria-label="Saved theory workspaces" data-i18n-aria-label="ui.theorySpaces">
+          <label for="theory-slot" data-i18n="ui.theorySlot">Theory</label>
+          <select id="theory-slot" aria-label="Theory slot" data-i18n-aria-label="ui.theorySlot">
+            <option value="0">A</option>
+            <option value="1">B</option>
+            <option value="2">C</option>
+          </select>
+          <button id="save-theory" class="button ghost compact" type="button" data-i18n="ui.saveTheory">Save current</button>
+          <button id="load-theory" class="button ghost compact" type="button" data-i18n="ui.loadTheory" disabled>Load</button>
+          <button id="clear-theory" class="button ghost compact" type="button" data-i18n="ui.clearTheory" disabled>Delete</button>
+        </div>
         <div class="action-row">
           <button id="check" class="button primary" type="button" data-i18n="ui.check">Check answers</button>
           <button id="undo" class="button ghost" type="button" data-i18n="ui.undo" disabled>Undo</button>
@@ -180,7 +194,7 @@
       <li><strong data-i18n="ui.rule3Title">Respect the map.</strong> <span data-i18n="ui.rule3Body">Blocking furniture cannot be occupied. Chairs, beds, rugs and puddles can.</span></li>
       <li><strong data-i18n="ui.rule4Title">“Next to” is orthogonal.</strong> <span data-i18n="ui.rule4Body">The cell must be directly above, below, left or right, and in the same room.</span></li>
       <li><strong data-i18n="ui.rule5Title">The murderer is inferred automatically.</strong> <span data-i18n="ui.rule5Body">Each investigation defines its own culpability rule: room alibi, evidence trail, or restricted access.</span></li>
-      <li><strong data-i18n="ui.rule6Title">Keep a working theory.</strong> <span data-i18n="ui.rule6Body">Pencil candidates and tentative placements are saved automatically and can be undone.</span></li>
+      <li><strong data-i18n="ui.rule6Title">Compare working theories.</strong> <span data-i18n="ui.rule6Body">Pencil candidates and tentative placements are saved automatically. Store up to three complete combinations in slots A, B and C.</span></li>
     </ol>
     <p data-i18n="ui.rectangleRule">Rectangular grids use at most min(rows, columns) characters to preserve the row-column constraint.</p>
   </dialog>
