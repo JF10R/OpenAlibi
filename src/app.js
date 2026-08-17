@@ -1,5 +1,6 @@
 import {
   DIFFICULTIES,
+  GENERATOR_VERSION,
   OBJECT_TYPES,
   createRandomSeed,
   describeHint,
@@ -9,6 +10,7 @@ import {
   serializePuzzle,
   validatePlayerState,
 } from './core.js';
+import { createChallengeUrl, parseChallengeUrl } from './challenge.js';
 import {
   cloneProgress,
   commitHistory,
@@ -79,6 +81,7 @@ const dom = {
   clear: document.querySelector('#clear'),
   hint: document.querySelector('#hint'),
   reveal: document.querySelector('#reveal'),
+  shareChallenge: document.querySelector('#share-challenge'),
   exportJson: document.querySelector('#export-json'),
   print: document.querySelector('#print'),
   status: document.querySelector('#status'),
@@ -1011,6 +1014,17 @@ function exportJson() {
   URL.revokeObjectURL(url);
 }
 
+async function copyChallengeLink() {
+  try {
+    const url = createChallengeUrl(window.location.href, state.puzzle);
+    if (!navigator.clipboard?.writeText) throw new Error('Clipboard is unavailable.');
+    await navigator.clipboard.writeText(url);
+    setStatus('status.challengeCopied', {}, 'success');
+  } catch {
+    setStatus('status.challengeCopyFailed', {}, 'error');
+  }
+}
+
 function escapeHtml(value) {
   return String(value)
     .replaceAll('&', '&amp;')
@@ -1048,6 +1062,7 @@ dom.redo.addEventListener('click', redoProgress);
 dom.clear.addEventListener('click', clearBoard);
 dom.hint.addEventListener('click', giveHint);
 dom.reveal.addEventListener('click', revealSolution);
+dom.shareChallenge.addEventListener('click', copyChallengeLink);
 dom.exportJson.addEventListener('click', exportJson);
 dom.print.addEventListener('click', () => window.print());
 dom.openRules.addEventListener('click', () => dom.rules.showModal());
@@ -1080,8 +1095,9 @@ dom.caseSettings.open = !mobileLayout.matches;
 applyTheme(document.documentElement.dataset.theme, false);
 applyLocale(state.locale, false);
 let initialGeneration = null;
+initialGeneration = parseChallengeUrl(window.location.href, GENERATOR_VERSION);
 try {
-  initialGeneration = JSON.parse(localStorage.getItem(CURRENT_DRAFT_STORAGE_KEY))?.generation ?? null;
+  initialGeneration ??= JSON.parse(localStorage.getItem(CURRENT_DRAFT_STORAGE_KEY))?.generation ?? null;
 } catch {
   // Start a fresh case when the current draft is unavailable or invalid.
 }

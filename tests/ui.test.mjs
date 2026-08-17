@@ -6,6 +6,7 @@ const files = Object.fromEntries(await Promise.all([
   ['index', 'index.html'],
   ['app', 'src/app.js'],
   ['core', 'src/core.js'],
+  ['challenge', 'src/challenge.js'],
   ['i18n', 'src/i18n.js'],
   ['styles', 'styles.css'],
   ['readme', 'README.md'],
@@ -19,6 +20,7 @@ assert.match(files.index, /OpenAlibi/, 'the trilingual project name must appear 
 assert.equal(JSON.parse(files.package).name, 'openalibi', 'the package must use the new repository name');
 
 assert.match(files.index, /id="theme-toggle"/, 'the interface must expose a theme toggle');
+assert.match(files.index, /id="share-challenge"/, 'players must be able to copy a reproducible challenge link');
 assert.match(files.index, /id="case-settings"/, 'case settings must use a mobile-friendly disclosure');
 assert.match(files.index, /id="mode-place"/, 'the board must expose an explicit placement mode');
 assert.match(files.index, /id="mode-mark"/, 'touch users must have an explicit exclusion mode');
@@ -34,6 +36,8 @@ assert.match(files.styles, /:root\[data-theme=['"]dark['"]\]/, 'a dark color the
 assert.match(files.app, /openalibi-theme/, 'the selected theme must be persisted');
 assert.match(files.app, /openalibi-locale/, 'the selected locale must be persisted');
 assert.match(files.app, /openalibi-current-draft/, 'the active case must be restored across sessions');
+assert.match(files.challenge, /createChallengeUrl/, 'shared challenges must use a canonical serializer');
+assert.match(files.challenge, /parseChallengeUrl/, 'shared challenge settings must be validated before generation');
 assert.match(files.app, /serializeDraft/, 'progress persistence must use the validated draft serializer');
 assert.match(files.app, /commitHistory/, 'player mutations must be recorded in undo history');
 assert.match(files.app, /ResizeObserver/, 'board fit must react to viewport and panel size changes');
@@ -72,7 +76,7 @@ assert.match(files.styles, /safe-area-inset-bottom/, 'mobile controls must respe
 assert.match(files.styles, /prefers-reduced-motion:\s*reduce/, 'motion preferences must be respected');
 assert.match(files.styles, /:focus-visible/, 'keyboard focus must remain clearly visible');
 assert.match(files.styles, /hover:\s*none/, 'touch devices must not retain hover-only effects');
-const placementHandler = files.app.match(/function placeSelected\(cell\) \{[\s\S]+?\n\}\n\nfunction checkAnswers/);
+const placementHandler = files.app.match(/function placeSelected\(cell\) \{[\s\S]+?\r?\n\}\r?\n\r?\nfunction checkAnswers/);
 assert.ok(placementHandler, 'the cell placement handler must remain testable');
 assert.match(
   placementHandler[0],

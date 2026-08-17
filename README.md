@@ -33,6 +33,7 @@ The objective is to place every character, locate the victim, and identify the m
 | **Trilingual interface** | The complete experience supports English, French, and Spanish, including generated names and testimonies. |
 | **Zero runtime dependencies** | The application uses native HTML, CSS, and JavaScript only. |
 | **Complete interface** | Pencil candidates, trial placements, undo/redo, autosave, dark mode, printing, hints, and JSON export are included. |
+| **Fair challenges** | Reproducible links share only the seed and case settings. |
 
 ## How to play
 
@@ -158,11 +159,13 @@ openalibi/
 ├── styles.css                Layout, themes, responsiveness, and print styles
 ├── src/
 │   ├── app.js                State, rendering, interactions, and locale switching
+│   ├── challenge.js          Canonical challenge links
 │   ├── core.js               Generator, constraints, solver, and validation
 │   ├── i18n.js               Message, room, object, title, and name catalogs
 │   └── progress.js           Draft serialization and immutable undo/redo history
 ├── tests/
 │   ├── generator.test.mjs    Generator and solver tests
+│   ├── challenge.test.mjs    Shared-case identity tests
 │   ├── progress.test.mjs     Persistence and history tests
 │   ├── i18n.test.mjs         Localization and cross-locale stability tests
 │   └── ui.test.mjs           Static interface contracts
