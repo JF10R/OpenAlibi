@@ -834,13 +834,13 @@ function renderBoard() {
     element.style.setProperty('--room-color', roomById.get(cell.roomId).color);
     if (!cell.occupiable) element.classList.add('blocked');
     if (cell.object) element.classList.add('has-object', `cell-object-${cell.object}`);
-    const manualCharacters = puzzle.characters.filter((character) => (
+    const manuallyExcluded = puzzle.characters.some((character) => (
       state.manualExclusionsByCharacter[character.id]?.has(cell.key)
     ));
     const candidateCharacters = puzzle.characters.filter((character) => (
       state.candidateCellsByCharacter[character.id]?.has(cell.key)
     ));
-    if (manualCharacters.length) element.classList.add('excluded');
+    if (manuallyExcluded) element.classList.add('excluded');
     if (candidateCharacters.length) element.classList.add('has-candidates');
     if (selectedCell && (selectedCell.row === cell.row || selectedCell.col === cell.col)) element.classList.add('selected-line');
 
@@ -896,11 +896,11 @@ function renderBoard() {
       ${occupant ? avatarMarkup(occupant, true) : ''}
       ${tentativeOccupant ? avatarMarkup(tentativeOccupant, true).replace('avatar ', 'avatar ghost-avatar ') : ''}
       ${pendingRemoval ? `<span class="removal-confirmation">${translate(state.locale, 'ui.removeConfirmation')}</span>` : ''}
-      ${automaticallyExcluded && !occupant
+      ${automaticallyExcluded && !occupant && !manuallyExcluded
         ? '<span class="x-mark auto-exclusion">×</span>'
         : ''}
-      ${manualCharacters.length && !occupant
-        ? `<span class="manual-notes">${manualCharacters.map((character) => `<i>×${escapeHtml(character.name[0])}</i>`).join('')}</span>`
+      ${manuallyExcluded && !occupant
+        ? '<span class="x-mark manual-exclusion">×</span>'
         : ''}
       ${candidateCharacters.length && !occupant
         ? `<span class="candidate-notes">${candidateCharacters.map((character) => `<i style="--avatar-hue:${character.avatarHue}">${escapeHtml(character.name[0])}</i>`).join('')}</span>`

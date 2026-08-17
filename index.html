@@ -170,7 +170,7 @@
             </div>
             <div class="board-tools">
               <button id="mode-place" class="button ghost compact" type="button" aria-pressed="true" data-i18n="ui.modePlace">Place</button>
-              <button id="open-planning" class="button ghost compact" type="button" aria-pressed="false" data-i18n="ui.planning">Planning</button>
+              <button id="open-planning" class="button ghost compact" type="button" aria-pressed="false" data-i18n="ui.planning">Hypothesis mode</button>
               <button id="open-object-legend" class="button ghost compact" type="button" aria-haspopup="dialog" data-i18n="ui.objectLegendButton">Legend</button>
             </div>
           </div>
@@ -196,12 +196,12 @@
   <dialog id="planning-dialog" class="modal planning-modal" aria-labelledby="planning-title">
     <div class="modal-header">
       <div>
-        <p class="eyebrow" data-i18n="ui.planning">Planning</p>
-        <h2 id="planning-title" data-i18n="ui.planningTitle">Deduction workspace</h2>
+        <p class="eyebrow" data-i18n="ui.planning">Hypothesis mode</p>
+        <h2 id="planning-title" data-i18n="ui.planningTitle">Hypothesis workspace</h2>
       </div>
       <button id="close-planning" class="button ghost compact" type="button" data-i18n="ui.close">Close</button>
     </div>
-    <p data-i18n="ui.planningIntro">Mark exclusions, keep pencil candidates, try placements, or save alternate theories.</p>
+    <p data-i18n="ui.planningIntro">Mark generic exclusions, keep pencil candidates, try placements, or save alternate theories.</p>
     <div class="board-mode planning-modes" role="group" aria-label="Board interaction mode" data-i18n-aria-label="ui.boardMode">
       <button id="mode-mark" class="button ghost" type="button" aria-pressed="false" data-i18n="ui.modeMark">Mark ×</button>
       <button id="mode-candidate" class="button ghost" type="button" aria-pressed="false" data-i18n="ui.modeCandidate">Pencil</button>

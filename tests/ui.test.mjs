@@ -48,6 +48,11 @@ assert.match(files.index, /id="mode-candidate"/, 'players must have a per-charac
 assert.match(files.index, /id="mode-tentative"/, 'players must have a tentative placement mode');
 assert.match(files.index, /id="open-planning"/, 'planning tools must be grouped behind one control');
 assert.match(files.index, /id="planning-dialog"/, 'planning tools must use an accessible dialog');
+assert.deepEqual(
+  SUPPORTED_LOCALES.map((locale) => translate(locale, 'ui.planning')),
+  ['Hypothesis mode', 'Mode Hypothèse', 'Modo hipótesis'],
+  'the planning entry point must be named as a hypothesis mode in every locale',
+);
 const primaryActions = files.index.match(/<div class="action-row">([\s\S]+?)<\/div>/)?.[1] ?? '';
 assert.ok((primaryActions.match(/<button/g) ?? []).length <= 4, 'the persistent action bar must stay focused');
 assert.doesNotMatch(primaryActions, /share-challenge|export-json|reveal/, 'secondary case actions must stay in the compact menu');
@@ -176,6 +181,10 @@ assert.match(files.styles, /--radius-panel:\s*10px/, 'major surfaces must use re
 assert.match(files.app, /room:\s*roomById\.get\(cell\.roomId\)\.name/, 'accessible cell labels must name their room');
 assert.match(files.styles, /prefers-contrast:\s*more/, 'system contrast preferences must receive stronger visual treatment');
 assert.match(files.styles, /\.candidate-notes/, 'per-character pencil notes must remain visible in cells');
+assert.match(files.app, /const manuallyExcluded = puzzle\.characters\.some/, 'manual exclusions must collapse to one generic cell marker');
+assert.match(files.app, /x-mark manual-exclusion/, 'manual exclusions must render as a generic ×');
+assert.doesNotMatch(files.app, /manual-notes|manualCharacters/, 'manual exclusions must never render character initials');
+assert.doesNotMatch(files.styles, /\.manual-notes/, 'obsolete character-specific exclusion styling must be removed');
 assert.match(files.styles, /\.ghost-avatar/, 'tentative placements must be visually distinct');
 assert.match(files.styles, /@media \(min-width: 1121px\) and \(min-height: 820px\)/, 'tall desktop viewports must use a viewport-constrained workspace');
 assert.match(files.styles, /body\s*\{[^}]*overflow:\s*hidden/s, 'desktop mode must avoid page scrolling');
