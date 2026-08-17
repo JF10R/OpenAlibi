@@ -458,6 +458,14 @@ function placeObjects(rows, cols, rooms, config, rng) {
     return [row, col];
   }
 
+  function spansRoomAxis(room, footprintCells) {
+    const footprintWidth = Math.max(...footprintCells.map((cell) => cell.col))
+      - Math.min(...footprintCells.map((cell) => cell.col)) + 1;
+    const footprintHeight = Math.max(...footprintCells.map((cell) => cell.row))
+      - Math.min(...footprintCells.map((cell) => cell.row)) + 1;
+    return footprintWidth === room.width || footprintHeight === room.height;
+  }
+
   function candidatePlacements(room, type, zone = OBJECT_PLACEMENT_RULES[type].zone) {
     const rule = OBJECT_PLACEMENT_RULES[type];
     if (!rule.roomTypes.includes(room.type)) return [];
@@ -507,6 +515,7 @@ function placeObjects(rows, cols, rooms, config, rng) {
 
   function placeObject(type, requiredRoom = null) {
     const rule = OBJECT_PLACEMENT_RULES[type];
+    const preferInsetCarpet = type === 'carpet' && rng() >= 0.3;
     const candidateRooms = (requiredRoom ? [requiredRoom] : rooms)
       .filter((room) => roomCanReceive(room, type))
       .map((room) => {
@@ -518,10 +527,13 @@ function placeObjects(rows, cols, rooms, config, rng) {
           0,
           ...fallbackCandidates.map(({ footprintCells }) => footprintCells.length),
         );
+        const hasInsetCarpet = type === 'carpet'
+          && fallbackCandidates.some(({ footprintCells }) => !spansRoomAxis(room, footprintCells));
         return {
           room,
           score: roomObjectCount.get(room.id) / (room.height * room.width)
             - (type === 'carpet' ? largestFootprint * 0.08 : 0)
+            + (preferInsetCarpet && !hasInsetCarpet ? 1 : 0)
             + rng() * 0.04,
         };
       })
@@ -534,10 +546,20 @@ function placeObjects(rows, cols, rooms, config, rng) {
       candidates = candidatePlacements(room, type, 'any');
     }
     if (type === 'carpet' && candidates.length) {
-      const largestFootprint = Math.max(
-        ...candidates.map(({ footprintCells }) => footprintCells.length),
-      );
-      candidates = candidates.filter(({ footprintCells }) => footprintCells.length === largestFootprint);
+      if (preferInsetCarpet) {
+        const insetCandidates = candidates.filter(({ footprintCells }) => (
+          !spansRoomAxis(room, footprintCells)
+        ));
+        if (insetCandidates.length) candidates = insetCandidates;
+      }
+      const footprintSizes = [
+        ...new Set(candidates.map(({ footprintCells }) => footprintCells.length)),
+      ].sort((first, second) => second - first);
+      const weightedSizes = footprintSizes.flatMap((size, index) => (
+        Array(footprintSizes.length - index).fill(size)
+      ));
+      const selectedSize = sample(rng, weightedSizes);
+      candidates = candidates.filter(({ footprintCells }) => footprintCells.length === selectedSize);
     }
     const candidate = sample(rng, candidates);
     if (!candidate) return false;

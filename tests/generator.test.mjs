@@ -322,13 +322,41 @@ for (const options of scenarios) {
   assert.equal(validation.solved, true);
 }
 
+const rugVariationPuzzles = Array.from({ length: 12 }, (_, index) => generatePuzzle({
+  rows: 9,
+  cols: 9,
+  density: 0.9,
+  difficulty: 'moyen',
+  caseType: 'mixed',
+  seed: `RUG-VARIETY-${index}`,
+  locale: 'fr',
+}));
+const seedsWithWallToWallRugs = rugVariationPuzzles.filter((puzzle) => {
+  const roomById = new Map(puzzle.rooms.map((room) => [room.id, room]));
+  return puzzle.objects.some((object) => {
+    if (object.type !== 'carpet') return false;
+    const room = roomById.get(object.roomId);
+    const footprintCells = object.footprint.map((key) => puzzle.cellByKey.get(key));
+    const footprintWidth = Math.max(...footprintCells.map((cell) => cell.col))
+      - Math.min(...footprintCells.map((cell) => cell.col)) + 1;
+    const footprintHeight = Math.max(...footprintCells.map((cell) => cell.row))
+      - Math.min(...footprintCells.map((cell) => cell.row)) + 1;
+    return footprintWidth === room.width || footprintHeight === room.height;
+  });
+});
+assert.ok(seedsWithWallToWallRugs.length > 0, 'wall-to-wall rugs must remain possible');
+assert.ok(
+  seedsWithWallToWallRugs.length < rugVariationPuzzles.length,
+  'wall-to-wall rugs must not be guaranteed in every seed',
+);
+
 const besideObjectPuzzle = generatePuzzle({
   rows: 8,
   cols: 8,
   density: 1,
   difficulty: 'moyen',
   caseType: 'evidenceTrail',
-  seed: 'MIX-FINAL-3',
+  seed: 'MIX-FINAL-2',
   locale: 'fr',
 });
 const besideObjectClue = besideObjectPuzzle.clues.find((clue) => (
@@ -356,7 +384,7 @@ const soleRugPuzzle = generatePuzzle({
   density: 1,
   difficulty: 'difficile',
   caseType: 'coPresence',
-  seed: 'RUG-NODIST-1',
+  seed: 'RUG-NODIST-6',
   locale: 'fr',
 });
 const soleRugClue = soleRugPuzzle.clues.find((clue) => (
@@ -401,7 +429,7 @@ const largeRugPuzzle = generatePuzzle({
   rows: 10,
   cols: 10,
   difficulty: 'moyen',
-  seed: 'LARGE-RUG-0',
+  seed: 'LARGE-RUG-2',
   locale: 'en',
 });
 assert.ok(
