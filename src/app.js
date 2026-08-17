@@ -60,7 +60,6 @@ const state = {
   interactionMode: 'place',
   focusedCellKey: null,
   history: null,
-  boardViewMode: 'fit',
   caseSolvedPublished: false,
 };
 
@@ -81,7 +80,6 @@ const dom = {
   saveTheory: document.querySelector('#save-theory'),
   loadTheory: document.querySelector('#load-theory'),
   clearTheory: document.querySelector('#clear-theory'),
-  boardViewMode: document.querySelector('#board-view-mode'),
   language: document.querySelector('#language'),
   rows: document.querySelector('#rows'),
   cols: document.querySelector('#cols'),
@@ -472,24 +470,22 @@ const ROOM_SYMBOLS = Object.freeze({
 const OBJECT_SVGS = {
   chair: `
     <svg viewBox="0 0 32 32" aria-hidden="true">
-      <rect class="object-fill" x="8" y="9" width="16" height="16" rx="4" />
-      <path d="M8 10h16M10 14h12v9H10zM7 14v8M25 14v8" />
-      <path class="object-accent" d="M11 7h10l3 3H8l3-3Z" />
-      <circle cx="10" cy="26" r="1.3" /><circle cx="22" cy="26" r="1.3" />
+      <path class="object-accent chair-back" d="M7 5.5h18v7H7z" />
+      <path d="M10 7v4M16 7v4M22 7v4" />
+      <rect class="object-fill chair-seat" x="7.5" y="15" width="17" height="10" rx="0.75" />
+      <path d="M8.5 12.5v15M23.5 12.5v15M8.5 25h15" />
     </svg>`,
   bed: `
     <svg viewBox="0 0 32 32" preserveAspectRatio="none" aria-hidden="true">
-      <rect class="object-fill" x="3" y="5" width="26" height="22" rx="3" />
-      <rect class="object-accent" x="6" y="8" width="8" height="16" rx="2.5" />
+      <rect class="object-fill" x="3" y="5" width="26" height="22" rx="0.75" />
+      <rect class="object-accent" x="6" y="8" width="8" height="16" rx="1" />
       <path d="M16 7v18M19 10h7M19 16h7M19 22h7M4 25h24" />
     </svg>`,
   carpet: `
     <svg viewBox="0 0 32 32" preserveAspectRatio="none" aria-hidden="true">
-      <rect class="object-fill" x="4" y="6" width="24" height="20" rx="2" />
-      <rect x="6.5" y="8.5" width="19" height="15" rx="1" />
-      <path class="object-accent" d="m16 9 8 7-8 7-8-7 8-7Z" />
-      <path d="m16 12 4.5 4-4.5 4-4.5-4 4.5-4Z" />
-      <path d="M4 10h-2M4 14h-2M4 18h-2M4 22h-2M28 10h2M28 14h2M28 18h2M28 22h2" />
+      <rect class="object-fill" x="3" y="5" width="26" height="22" rx="0.5" />
+      <rect x="5.5" y="7.5" width="21" height="17" />
+      <path class="object-accent carpet-weave" d="M7 10h18M7 16h18M7 22h18M10 8v17M16 8v17M22 8v17" />
     </svg>`,
   puddle: `
     <svg viewBox="0 0 32 32" aria-hidden="true">
@@ -499,16 +495,16 @@ const OBJECT_SVGS = {
     </svg>`,
   table: `
     <svg viewBox="0 0 32 32" preserveAspectRatio="none" aria-hidden="true">
-      <ellipse class="object-fill" cx="16" cy="15" rx="12" ry="8.5" />
-      <ellipse cx="16" cy="15" rx="8.5" ry="5" />
-      <circle class="object-accent" cx="11" cy="15" r="2" /><circle class="object-accent" cx="21" cy="15" r="2" />
-      <path d="M7 22v4M25 22v4" />
+      <rect class="object-fill table-top" x="3" y="7" width="26" height="18" rx="1" />
+      <path d="M5.5 10h21v12h-21zM16 10v12" />
+      <circle class="object-accent" cx="7" cy="11.5" r="1.5" /><circle class="object-accent" cx="25" cy="11.5" r="1.5" />
+      <circle class="object-accent" cx="7" cy="20.5" r="1.5" /><circle class="object-accent" cx="25" cy="20.5" r="1.5" />
     </svg>`,
   shelf: `
     <svg viewBox="0 0 32 32" preserveAspectRatio="none" aria-hidden="true">
-      <rect class="object-fill" x="3" y="7" width="26" height="18" rx="2" />
-      <path d="M4 11h24M4 21h24M8 11v10M13 11v10M19 11v10M24 11v10" />
-      <path class="object-accent" d="M9 13h3v6H9zM15 13h3v6h-3zM21 13h2v6h-2z" />
+      <rect class="object-fill" x="3" y="8" width="26" height="16" rx="0.5" />
+      <path d="M4 10.5h24M4 21.5h24" />
+      <path class="object-accent shelf-books" d="M7 11v10M9.5 11v10M12.5 11v10M16 11v10M18 11v10M21.5 11v10M25 11v10" />
     </svg>`,
   plant: `
     <svg viewBox="0 0 32 32" aria-hidden="true">
@@ -518,15 +514,15 @@ const OBJECT_SVGS = {
     </svg>`,
   counter: `
     <svg viewBox="0 0 32 32" preserveAspectRatio="none" aria-hidden="true">
-      <rect class="object-fill" x="3" y="7" width="26" height="18" rx="3" />
-      <path d="M4 11h24M8 15h11v7H8z" />
-      <circle class="object-accent" cx="24" cy="18" r="2.5" />
-      <path d="M24 15v-3h3" />
+      <rect class="object-fill" x="3" y="7" width="26" height="18" rx="0.5" />
+      <path d="M4 10.5h24M4 22h24M7 13h8v7H7z" />
+      <rect class="object-accent counter-basin" x="19" y="13" width="7" height="7" rx="0.75" />
+      <path d="M21 13v-3h4v3" />
     </svg>`,
   tv: `
     <svg viewBox="0 0 32 32" aria-hidden="true">
-      <rect class="object-fill" x="3" y="8" width="26" height="15" rx="2.5" />
-      <rect class="object-accent" x="6" y="11" width="20" height="9" rx="1" />
+      <rect class="object-fill" x="3" y="8" width="26" height="15" rx="1" />
+      <rect class="object-accent" x="6" y="11" width="20" height="9" rx="0.5" />
       <path d="M11 27h10M16 23v4M10 5l6 3 6-3" />
     </svg>`,
   statue: `
@@ -648,7 +644,6 @@ function render() {
   renderSuspects();
   renderBoard();
   renderTheoryControls();
-  setBoardViewMode(state.boardViewMode);
 }
 
 function renderTheoryControls() {
@@ -835,7 +830,7 @@ function isAutomaticallyExcluded(cell) {
 }
 
 function fitBoardToViewport() {
-  if (!state.puzzle || state.boardViewMode === 'zoom') return false;
+  if (!state.puzzle) return;
   const width = Math.max(1, dom.boardScroll.clientWidth - 14);
   const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
   const compactReservedHeight = [
@@ -847,29 +842,12 @@ function fitBoardToViewport() {
   const height = Math.max(1, compactLayout.matches
     ? viewportHeight - compactReservedHeight
     : dom.boardScroll.clientHeight - 14);
-  const cellSize = Math.max(22, Math.min(
+  const cellSize = Math.max(44, Math.min(
     82,
     Math.floor(width / state.puzzle.cols),
     Math.floor(height / state.puzzle.rows),
   ));
-  const nextValue = `${cellSize}px`;
-  const changed = dom.board.style.getPropertyValue('--cell-size') !== nextValue;
-  dom.board.style.setProperty('--cell-size', nextValue);
-  return changed;
-}
-
-function setBoardViewMode(mode) {
-  state.boardViewMode = mode === 'zoom' ? 'zoom' : 'fit';
-  const zoomed = state.boardViewMode === 'zoom';
-  dom.board.dataset.view = state.boardViewMode;
-  dom.boardScroll.dataset.view = state.boardViewMode;
-  dom.boardViewMode.setAttribute('aria-pressed', String(zoomed));
-  dom.boardViewMode.textContent = translate(
-    state.locale,
-    zoomed ? 'ui.fitBoard' : 'ui.zoomBoard',
-  );
-  if (zoomed) dom.board.style.removeProperty('--cell-size');
-  else fitBoardToViewport();
+  dom.board.style.setProperty('--cell-size', `${cellSize}px`);
 }
 
 function renderBoard() {
@@ -947,6 +925,7 @@ function renderBoard() {
       translate(state.locale, 'ui.cellAria', {
         row: cell.row + 1,
         col: cell.col + 1,
+        room: roomById.get(cell.roomId).name,
         object: objectAria,
         occupant: occupantAria,
       }),
@@ -986,16 +965,11 @@ function renderBoard() {
   }
 
   fitBoardToViewport();
-  const boardBounds = dom.board.getBoundingClientRect();
-  const firstCellBounds = dom.board.querySelector('.cell').getBoundingClientRect();
-  const cellSize = firstCellBounds.width;
-  const originLeft = firstCellBounds.left - boardBounds.left;
-  const originTop = firstCellBounds.top - boardBounds.top;
-  const positionRoomLayer = (layer, room) => {
-    layer.style.left = `${originLeft + room.left * cellSize}px`;
-    layer.style.top = `${originTop + room.top * cellSize}px`;
-    layer.style.width = `${room.width * cellSize}px`;
-    layer.style.height = `${room.height * cellSize}px`;
+  const positionGridLayer = (layer, bounds) => {
+    layer.style.setProperty('--layer-col', bounds.left);
+    layer.style.setProperty('--layer-row', bounds.top);
+    layer.style.setProperty('--layer-cols', bounds.width);
+    layer.style.setProperty('--layer-rows', bounds.height);
   };
   for (const room of puzzle.rooms) {
     const surface = document.createElement('span');
@@ -1003,7 +977,7 @@ function renderBoard() {
     surface.style.setProperty('--room-color', room.color);
     surface.dataset.roomType = room.type;
     surface.dataset.neighbors = room.neighborIds?.join(',') ?? '';
-    positionRoomLayer(surface, room);
+    positionGridLayer(surface, room);
     dom.board.appendChild(surface);
 
     const label = document.createElement('span');
@@ -1021,7 +995,7 @@ function renderBoard() {
     labelText.textContent = room.name;
     plaque.append(symbol, labelText);
     label.appendChild(plaque);
-    positionRoomLayer(label, room);
+    positionGridLayer(label, room);
     dom.board.appendChild(label);
   }
 
@@ -1033,10 +1007,12 @@ function renderBoard() {
     const maxCol = Math.max(...footprintCells.map((cell) => cell.col));
     const layer = document.createElement('span');
     layer.className = `object-entity object-entity-${object.type} orientation-${object.orientation}`;
-    layer.style.left = `${originLeft + minCol * cellSize}px`;
-    layer.style.top = `${originTop + minRow * cellSize}px`;
-    layer.style.width = `${(maxCol - minCol + 1) * cellSize}px`;
-    layer.style.height = `${(maxRow - minRow + 1) * cellSize}px`;
+    positionGridLayer(layer, {
+      left: minCol,
+      top: minRow,
+      width: maxCol - minCol + 1,
+      height: maxRow - minRow + 1,
+    });
     layer.innerHTML = objectMarkup(
       object.type,
       OBJECT_TYPES[object.type],
@@ -1274,9 +1250,6 @@ dom.theorySlot.addEventListener('change', renderTheoryControls);
 dom.saveTheory.addEventListener('click', saveCurrentTheory);
 dom.loadTheory.addEventListener('click', loadCurrentTheory);
 dom.clearTheory.addEventListener('click', clearCurrentTheory);
-dom.boardViewMode.addEventListener('click', () => {
-  setBoardViewMode(state.boardViewMode === 'fit' ? 'zoom' : 'fit');
-});
 dom.generate.addEventListener('click', () => generate(dom.seed.value, true));
 dom.randomizeSeed.addEventListener('click', () => {
   dom.seed.value = createRandomSeed();
@@ -1321,19 +1294,12 @@ dom.colorVisionMode.addEventListener('change', () => {
 });
 compactLayout.addEventListener('change', (event) => {
   dom.caseSettings.open = !event.matches;
-  state.boardViewMode = event.matches ? state.boardViewMode : 'fit';
-  setBoardViewMode(state.boardViewMode);
+  fitBoardToViewport();
 });
 new ResizeObserver(() => {
-  const hadBoardFocus = dom.board.contains(document.activeElement);
-  const focusedCellKey = state.focusedCellKey;
-  if (fitBoardToViewport()) {
-    window.requestAnimationFrame(() => {
-      renderBoard();
-      if (hadBoardFocus && focusedCellKey) focusBoardCell(focusedCellKey);
-    });
-  }
+  fitBoardToViewport();
 }).observe(dom.boardScroll);
+window.visualViewport?.addEventListener('resize', fitBoardToViewport);
 function isEditableTarget(target) {
   return target instanceof HTMLElement
     && (target.isContentEditable || ['INPUT', 'SELECT', 'TEXTAREA'].includes(target.tagName));

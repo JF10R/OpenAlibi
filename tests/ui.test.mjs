@@ -48,7 +48,7 @@ assert.match(files.index, /id="load-theory"/, 'players must be able to compare s
 assert.match(files.index, /id="undo"/, 'the action bar must expose undo');
 assert.match(files.index, /id="redo"/, 'the action bar must expose redo');
 assert.match(files.index, /id="case-type"/, 'settings must expose investigation archetypes');
-assert.match(files.index, /id="board-view-mode"/, 'small screens must switch between fit and zoom modes');
+assert.doesNotMatch(files.index, /id="board-view-mode"/, 'board sizing must stay automatic without a redundant zoom control');
 assert.match(files.index, /id="active-character"/, 'mobile players must retain selected-character context near the board');
 assert.match(files.index, /board-panel[\s\S]*suspects-panel[\s\S]*board-scroll/, 'characters and their clues must stay inside the grid workspace');
 assert.match(files.index, /enterkeyhint="go"/, 'the seed field must expose a mobile submit key');
@@ -75,11 +75,16 @@ assert.match(files.app, /commitHistory/, 'player mutations must be recorded in u
 assert.match(files.app, /saveTheorySlot/, 'theory workspaces must use the validated progress model');
 assert.match(files.app, /ResizeObserver/, 'board fit must react to viewport and panel size changes');
 assert.match(files.app, /fitBoardToViewport/, 'board sizing must use available width and height');
+assert.doesNotMatch(files.app, /boardViewMode|setBoardViewMode/, 'manual board sizing state must not desynchronize visual layers');
+assert.match(files.app, /Math\.max\(44,/, 'interactive cells must keep a touch-friendly minimum size');
+assert.match(files.app, /--layer-col/, 'board overlays must remain anchored to grid coordinates');
+assert.match(files.styles, /calc\(var\(--board-inset\) \+ var\(--layer-col\) \* var\(--cell-size\)\)/, 'board overlay geometry must follow the live cell size');
 assert.match(files.app, /visualViewport\?\.height/, 'compact board fitting must use the real mobile and tablet viewport height');
 assert.match(files.app, /previousScrollLeft/, 'rerendering characters must preserve the horizontal rail position');
 assert.match(files.app, /focusedCharacterId/, 'rerendering characters must restore keyboard focus');
 assert.match(files.app, /isEditableTarget/, 'game history shortcuts must not intercept editable controls');
-assert.match(files.app, /hadBoardFocus/, 'responsive board fitting must preserve keyboard focus');
+assert.doesNotMatch(files.app, /hadBoardFocus/, 'responsive board fitting must not rerender and steal keyboard focus');
+assert.match(files.app, /visualViewport\?\.addEventListener\('resize', fitBoardToViewport\)/, 'board sizing must react to mobile viewport changes');
 assert.match(files.index, /id="language"/, 'the interface must expose a language selector');
 for (const locale of SUPPORTED_LOCALES) {
   assert.match(files.index, new RegExp(`<option value="${locale}"`), `${locale} must be selectable`);
@@ -137,14 +142,23 @@ assert.match(
   'confirmed removal must remove the actual occupant',
 );
 assert.match(files.app, /\btv:\s*`/, 'the interface must draw televisions explicitly');
+assert.match(files.app, /chair-back/, 'chairs must expose a distinctive backrest instead of resembling televisions');
+assert.match(files.app, /carpet-weave/, 'carpets must use a restrained woven motif');
+assert.match(files.app, /table-top/, 'tables must expose a dedicated top-down silhouette');
+assert.match(files.app, /shelf-books/, 'shelves must remain recognizable without relying on color');
+assert.match(files.app, /counter-basin/, 'counters must expose a distinctive sink basin');
 assert.match(files.app, /ROOM_SYMBOLS/, 'room labels must expose recognizable type-specific symbols');
 assert.match(files.app, /object-fill/, 'object drawings must use layered vector surfaces');
 assert.match(files.app, /object-label/, 'objects must expose localized visible labels');
 assert.match(files.app, /object-entity/, 'multi-cell objects must render as unified visual entities');
+assert.doesNotMatch(files.styles, /object-entity\.orientation-(?:east|west)[\s\S]{0,160}rotate\(90deg\)/, 'oriented footprints must not rotate and clip their already-sized drawings');
 assert.match(files.styles, /data-visual-aids=['"]true['"]/, 'enhanced visual labels must have an explicit style mode');
 assert.match(files.styles, /data-color-vision=['"]red-green['"]/, 'red-green distinction must have a dedicated palette');
 assert.match(files.styles, /data-color-vision=['"]blue-yellow['"]/, 'blue-yellow distinction must have a dedicated palette');
 assert.match(files.styles, /data-color-vision=['"]monochrome['"]/, 'monochrome distinction must have a dedicated palette');
+assert.match(files.styles, /vector-effect:\s*non-scaling-stroke/, 'stretched multi-cell objects must keep consistent line weights');
+assert.match(files.styles, /--radius-panel:\s*10px/, 'major surfaces must use restrained corner radii');
+assert.match(files.app, /room:\s*roomById\.get\(cell\.roomId\)\.name/, 'accessible cell labels must name their room');
 assert.match(files.styles, /prefers-contrast:\s*more/, 'system contrast preferences must receive stronger visual treatment');
 assert.match(files.styles, /\.candidate-notes/, 'per-character pencil notes must remain visible in cells');
 assert.match(files.styles, /\.ghost-avatar/, 'tentative placements must be visually distinct');
