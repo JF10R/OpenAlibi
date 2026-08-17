@@ -11,6 +11,7 @@ const files = Object.fromEntries(await Promise.all([
   ['featureConfig', 'src/feature-config.js'],
   ['featureHost', 'src/feature-host.js'],
   ['i18n', 'src/i18n.js'],
+  ['objectVisuals', 'src/object-visuals.js'],
   ['styles', 'styles.css'],
   ['readme', 'README.md'],
   ['package', 'package.json'],
@@ -141,17 +142,18 @@ assert.match(
   /delete state\.placements\[occupant\.id\]/,
   'confirmed removal must remove the actual occupant',
 );
-assert.match(files.app, /\btv:\s*`/, 'the interface must draw televisions explicitly');
-assert.match(files.app, /chair-back/, 'chairs must expose a distinctive backrest instead of resembling televisions');
-assert.match(files.app, /carpet-weave/, 'carpets must use a restrained woven motif');
-assert.match(files.app, /table-top/, 'tables must expose a dedicated top-down silhouette');
-assert.match(files.app, /shelf-books/, 'shelves must remain recognizable without relying on color');
-assert.match(files.app, /counter-basin/, 'counters must expose a distinctive sink basin');
+assert.match(files.objectVisuals, /\btv:\s*`/, 'the interface must draw televisions explicitly');
+assert.match(files.objectVisuals, /chair-back/, 'chairs must expose a distinctive backrest instead of resembling televisions');
+assert.doesNotMatch(files.objectVisuals, /carpet-weave/, 'carpets must not use an internal grid motif');
+assert.match(files.objectVisuals, /carpet-motif/, 'carpets must use a restrained textile motif');
+assert.match(files.objectVisuals, /table-top/, 'tables must expose a dedicated top-down silhouette');
+assert.match(files.objectVisuals, /shelf-books/, 'shelves must remain recognizable without relying on color');
+assert.match(files.objectVisuals, /counter-basin/, 'counters must expose a distinctive sink basin');
 assert.match(files.app, /ROOM_SYMBOLS/, 'room labels must expose recognizable type-specific symbols');
-assert.match(files.app, /object-fill/, 'object drawings must use layered vector surfaces');
+assert.match(files.objectVisuals, /object-fill/, 'object drawings must use layered vector surfaces');
 assert.match(files.app, /object-label/, 'objects must expose localized visible labels');
 assert.match(files.app, /object-entity/, 'multi-cell objects must render as unified visual entities');
-assert.doesNotMatch(files.styles, /object-entity\.orientation-(?:east|west)[\s\S]{0,160}rotate\(90deg\)/, 'oriented footprints must not rotate and clip their already-sized drawings');
+assert.match(files.styles, /object-entity\.orientation-east\s+\.object-drawing[^}]*rotate\(90deg\)/, 'vertical footprints must rotate only their safe SVG drawing group');
 assert.match(files.styles, /data-visual-aids=['"]true['"]/, 'enhanced visual labels must have an explicit style mode');
 assert.match(files.styles, /data-color-vision=['"]red-green['"]/, 'red-green distinction must have a dedicated palette');
 assert.match(files.styles, /data-color-vision=['"]blue-yellow['"]/, 'blue-yellow distinction must have a dedicated palette');

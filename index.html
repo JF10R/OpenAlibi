@@ -127,13 +127,6 @@
           </div>
           <button id="generate" class="button primary wide" type="button" data-i18n="ui.generate">Generate a unique case</button>
 
-          <div class="legend">
-            <h3 data-i18n="ui.legendTitle">Map legend</h3>
-            <span><i class="legend-swatch occupiable"></i> <span data-i18n="ui.legendOccupiable">Occupiable cell</span></span>
-            <span><i class="legend-swatch blocked"></i> <span data-i18n="ui.legendBlocked">Blocking object</span></span>
-            <span data-i18n="ui.legendObjects">Chair · bed · rug · puddle — occupiable objects</span>
-            <small data-i18n="ui.legendRightClick">Right-click: add or remove an ×.</small>
-          </div>
         </div>
       </details>
     </aside>
@@ -175,6 +168,7 @@
             <div class="board-tools">
               <button id="mode-place" class="button ghost compact" type="button" aria-pressed="true" data-i18n="ui.modePlace">Place</button>
               <button id="open-planning" class="button ghost compact" type="button" aria-pressed="false" data-i18n="ui.planning">Planning</button>
+              <button id="open-object-legend" class="button ghost compact" type="button" aria-haspopup="dialog" data-i18n="ui.objectLegendButton">Legend</button>
             </div>
           </div>
           <p class="board-scroll-hint" data-i18n="ui.boardScrollHint">Swipe to explore larger grids.</p>
@@ -221,6 +215,19 @@
       <button id="load-theory" class="button ghost compact" type="button" data-i18n="ui.loadTheory" disabled>Load</button>
       <button id="clear-theory" class="button ghost compact" type="button" data-i18n="ui.clearTheory" disabled>Delete</button>
     </div>
+  </dialog>
+
+  <dialog id="object-legend-dialog" class="modal object-legend-modal" aria-labelledby="object-legend-title">
+    <div class="modal-header">
+      <div>
+        <p class="eyebrow" data-i18n="ui.crimeScene">Crime scene</p>
+        <h2 id="object-legend-title" data-i18n="ui.objectLegendTitle">Object legend</h2>
+      </div>
+      <button id="close-object-legend" class="button ghost compact" type="button" data-i18n="ui.close">Close</button>
+    </div>
+    <p data-i18n="ui.objectLegendIntro">Every object that may appear on the map. Some can hold a character; others block their cells.</p>
+    <div id="object-legend-list" class="object-legend-list" role="list"></div>
+    <small class="object-legend-tip" data-i18n="ui.legendRightClick">Right-click: add or remove an ×.</small>
   </dialog>
 
   <dialog id="rules-dialog" class="modal" aria-labelledby="rules-title">

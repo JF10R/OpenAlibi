@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en" data-theme="light" data-color-vision="standard">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpenAlibi object rendering gallery</title>
+  <link rel="stylesheet" href="../../styles.css">
+  <style>
+    body { min-height: 100vh; padding: 24px; background: var(--status-background); }
+    main { width: min(1500px, 100%); margin: 0 auto; }
+    h1 { margin-bottom: 4px; }
+    #audit-summary { margin: 0 0 24px; color: var(--muted); }
+    #audit-summary[data-status='pass'] { color: var(--success); }
+    #audit-summary[data-status='fail'] { color: var(--danger); }
+    .render-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+    .render-case { display: grid; gap: 8px; align-content: start; min-height: 170px; margin: 0; padding: 12px; background: var(--paper); border: 1px solid var(--line); }
+    .render-case figcaption { display: grid; gap: 2px; font-size: 0.72rem; }
+    .render-case figcaption strong { font-size: 0.86rem; }
+    .render-case[data-render-status='fail'] { border-color: var(--danger); box-shadow: inset 0 0 0 2px var(--danger); }
+    .render-board { margin: auto; background: var(--board-background); }
+    .render-board .cell { background: transparent; pointer-events: none; }
+    .render-error { color: var(--danger); font-weight: 800; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Object rendering gallery</h1>
+    <p id="audit-summary">Rendering all configured variants…</p>
+    <section id="render-gallery" class="render-gallery" aria-label="Object render variants"></section>
+  </main>
+  <script type="module" src="./object-gallery.js"></script>
+</body>
+</html>
