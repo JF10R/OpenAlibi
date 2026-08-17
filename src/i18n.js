@@ -743,7 +743,7 @@ const OBJECT_COPY = {
     shelf: { label: 'shelf', indefinite: 'a shelf', afterOf: 'a shelf' },
     plant: { label: 'plant', indefinite: 'a plant', afterOf: 'a plant' },
     counter: { label: 'counter', indefinite: 'a counter', afterOf: 'a counter' },
-    statue: { label: 'statue', indefinite: 'a statue', afterOf: 'a statue' },
+    statue: { label: 'lion statue', indefinite: 'a lion statue', afterOf: 'a lion statue' },
     tv: { label: 'television', indefinite: 'a television', afterOf: 'a television' },
   },
   fr: {
@@ -755,7 +755,7 @@ const OBJECT_COPY = {
     shelf: { label: 'étagère', indefinite: 'une étagère', afterOf: 'd’une étagère' },
     plant: { label: 'plante', indefinite: 'une plante', afterOf: 'd’une plante' },
     counter: { label: 'comptoir', indefinite: 'un comptoir', afterOf: 'd’un comptoir' },
-    statue: { label: 'statue', indefinite: 'une statue', afterOf: 'd’une statue' },
+    statue: { label: 'statue de lion', indefinite: 'une statue de lion', afterOf: 'd’une statue de lion' },
     tv: { label: 'télévision', indefinite: 'une télévision', afterOf: 'd’une télévision' },
   },
   es: {
@@ -767,7 +767,7 @@ const OBJECT_COPY = {
     shelf: { label: 'estantería', indefinite: 'una estantería', afterOf: 'una estantería' },
     plant: { label: 'planta', indefinite: 'una planta', afterOf: 'una planta' },
     counter: { label: 'mostrador', indefinite: 'un mostrador', afterOf: 'un mostrador' },
-    statue: { label: 'estatua', indefinite: 'una estatua', afterOf: 'una estatua' },
+    statue: { label: 'estatua de león', indefinite: 'una estatua de león', afterOf: 'una estatua de león' },
     tv: { label: 'televisor', indefinite: 'un televisor', afterOf: 'un televisor' },
   },
 };

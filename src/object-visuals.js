@@ -35,20 +35,21 @@ export const OBJECT_SVGS = Object.freeze({
   table: `
     <svg viewBox="0 0 32 32" preserveAspectRatio="none" aria-hidden="true">
       <g class="object-drawing">
-        <rect class="object-fill table-top" x="3" y="6" width="26" height="20" rx="2" />
-        <rect x="5.5" y="8.5" width="21" height="15" rx="1" />
-        <circle class="object-accent" cx="8" cy="11" r="1.5" />
-        <circle class="object-accent" cx="24" cy="11" r="1.5" />
-        <circle class="object-accent" cx="8" cy="21" r="1.5" />
-        <circle class="object-accent" cx="24" cy="21" r="1.5" />
+        <rect class="object-fill table-top" x="3" y="6" width="26" height="20" rx="5" />
+        <rect class="object-accent table-runner" x="12" y="8.5" width="8" height="15" rx="2" />
+        <circle class="table-setting" cx="7.5" cy="11" r="1.8" />
+        <circle class="table-setting" cx="24.5" cy="11" r="1.8" />
+        <circle class="table-setting" cx="7.5" cy="21" r="1.8" />
+        <circle class="table-setting" cx="24.5" cy="21" r="1.8" />
       </g>
     </svg>`,
   shelf: `
     <svg viewBox="0 0 32 32" preserveAspectRatio="none" aria-hidden="true">
       <g class="object-drawing">
-        <rect class="object-fill" x="3" y="7" width="26" height="18" rx="1" />
-        <path d="M4.5 10h23M4.5 22h23" />
-        <path class="object-accent shelf-books" d="M7 11v10M10 12v9M13 11v10M17 11v10M20 13v8M23 11v10M26 12v9" />
+        <rect class="object-fill shelf-carcass" x="3" y="3" width="26" height="26" rx="0.5" />
+        <path class="shelf-uprights" d="M5 4v24M27 4v24" />
+        <path class="shelf-levels" d="M4 5h24M4 13.5h24M4 22h24M4 28h24" />
+        <path class="object-accent shelf-books" d="M7 7h3v6H7zM11 8h3v5h-3zM15 6.5h4V13h-4zM20 8h4v5h-4zM7 15.5h4V22H7zM12 17h3v5h-3zM17 15h4v7h-4zM22 16.5h3V22h-3z" />
       </g>
     </svg>`,
   plant: `
@@ -79,10 +80,12 @@ export const OBJECT_SVGS = Object.freeze({
   statue: `
     <svg viewBox="0 0 32 32" preserveAspectRatio="none" aria-hidden="true">
       <g class="object-drawing">
-        <circle class="object-fill" cx="16" cy="7" r="4" />
-        <path class="object-fill" d="M10 20c0-6 2-9 6-9s6 3 6 9H10Z" />
-        <path d="M13 12v5M19 12v5M8 20h16l-2 4H10l-2-4Z" />
-        <path class="object-accent" d="M11 24h10v4H11z" />
+        <path class="object-accent lion-mane" d="M3.5 10.5c0-4.8 3.5-8 8.3-8 4.7 0 8.2 3.2 8.2 8s-3.5 8-8.2 8c-4.8 0-8.3-3.2-8.3-8Z" />
+        <path class="object-fill lion-face" d="M8 6h6l6 3.5-3.5 3.5H14l-2.5 3H8V6Z" />
+        <path d="M10 6l2-3 2 3M13.5 9h.1M17 11h2" />
+        <path class="object-fill lion-body" d="M11.5 15h10c3 0 4.5 2 4.5 5v4h-4v-5h-8v5h-4v-6.5c0-1.4.6-2.5 1.5-2.5Z" />
+        <path d="M14 22v5M23 22v5M26 18c3-1 3-4.5 1-6" />
+        <path class="object-accent lion-pedestal" d="M5 26.5h22l2 3H3l2-3Z" />
       </g>
     </svg>`,
 });

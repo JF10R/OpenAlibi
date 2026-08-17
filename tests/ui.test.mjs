@@ -147,8 +147,12 @@ assert.match(files.objectVisuals, /chair-back/, 'chairs must expose a distinctiv
 assert.doesNotMatch(files.objectVisuals, /carpet-weave/, 'carpets must not use an internal grid motif');
 assert.match(files.objectVisuals, /carpet-motif/, 'carpets must use a restrained textile motif');
 assert.match(files.objectVisuals, /table-top/, 'tables must expose a dedicated top-down silhouette');
+assert.match(files.objectVisuals, /shelf-uprights/, 'shelves must expose a front-facing cabinet silhouette distinct from tables');
+assert.match(files.objectVisuals, /shelf-levels/, 'shelves must expose several readable storage levels');
 assert.match(files.objectVisuals, /shelf-books/, 'shelves must remain recognizable without relying on color');
 assert.match(files.objectVisuals, /counter-basin/, 'counters must expose a distinctive sink basin');
+assert.match(files.objectVisuals, /lion-mane/, 'statues must expose a recognizable lion mane');
+assert.match(files.objectVisuals, /lion-body/, 'statues must expose a quadruped lion silhouette');
 assert.match(files.app, /ROOM_SYMBOLS/, 'room labels must expose recognizable type-specific symbols');
 assert.match(files.objectVisuals, /object-fill/, 'object drawings must use layered vector surfaces');
 assert.match(files.app, /object-label/, 'objects must expose localized visible labels');
