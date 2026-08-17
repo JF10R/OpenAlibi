@@ -147,6 +147,7 @@ function currentCaseSummary() {
     density: state.puzzle.density,
     difficulty: state.puzzle.difficulty,
     caseType: state.puzzle.requestedCaseType,
+    archetype: state.puzzle.caseType,
   });
 }
 
@@ -1349,8 +1350,15 @@ document.addEventListener('keydown', (event) => {
 });
 
 state.locale = getInitialLocale();
+const featureMounts = Object.freeze({
+  menuActions: document.querySelector('#feature-menu-actions'),
+  caseStatus: document.querySelector('#case-feature-status'),
+  successSummary: document.querySelector('#success-feature-summary'),
+  dialogRoot: document.querySelector('#feature-dialog-root'),
+});
 featureHost.start({
   getSnapshot: getFeatureSnapshot,
+  mounts: featureMounts,
   setStatus,
   translate: (key, parameters = {}) => translate(state.locale, key, parameters),
 });

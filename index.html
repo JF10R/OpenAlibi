@@ -41,6 +41,7 @@
             </label>
             <button id="theme-toggle" class="button ghost" type="button" aria-pressed="false">Dark mode</button>
             <button id="open-rules" class="button ghost" type="button" data-i18n="ui.rules">Rules</button>
+            <div id="feature-menu-actions" class="feature-mount feature-menu-actions"></div>
           </div>
           <div class="app-menu-section">
             <strong data-i18n="ui.caseActions">Case actions</strong>
@@ -147,6 +148,7 @@
         <div class="victim-box">
           <span data-i18n="ui.victim">Victim</span>
           <strong id="victim-name">—</strong>
+          <div id="case-feature-status" class="feature-mount case-feature-status"></div>
         </div>
       </article>
 
@@ -245,8 +247,11 @@
     <p class="eyebrow" data-i18n="ui.caseClosed">Case closed</p>
     <h2 id="success-title" data-i18n="ui.exactDeduction">Correct deduction</h2>
     <p id="success-text"></p>
+    <div id="success-feature-summary" class="feature-mount success-feature-summary" aria-live="polite"></div>
     <button id="success-close" class="button primary wide" type="button" data-i18n="ui.continue">Continue</button>
   </dialog>
+
+  <div id="feature-dialog-root" class="feature-mount feature-dialog-root"></div>
 
   <script type="module" src="./src/app.js"></script>
 </body>

@@ -24,6 +24,10 @@ assert.equal(JSON.parse(files.package).name, 'openalibi', 'the package must use 
 
 assert.match(files.index, /id="theme-toggle"/, 'the interface must expose a theme toggle');
 assert.match(files.index, /id="app-menu"/, 'secondary header actions must use one compact menu');
+assert.match(files.index, /id="feature-menu-actions"/, 'optional features need a stable menu mount');
+assert.match(files.index, /id="case-feature-status"/, 'optional features need a stable case-status mount');
+assert.match(files.index, /id="success-feature-summary"/, 'optional features need a stable success-summary mount');
+assert.match(files.index, /id="feature-dialog-root"/, 'optional features need a stable dialog mount');
 assert.match(files.index, /class="brand-mark"/, 'the header must use a concise brand lockup');
 assert.match(files.index, /id="visual-aids-enabled"/, 'players must be able to enable enhanced visual labels');
 assert.match(files.index, /id="color-vision-mode"/, 'players must be able to select a color-vision profile');
@@ -57,6 +61,8 @@ assert.match(files.app, /publishFeatureEvent\('accessibility-changed'/, 'optiona
 assert.match(files.app, /openalibi-locale/, 'the selected locale must be persisted');
 assert.match(files.app, /openalibi-current-draft/, 'the active case must be restored across sessions');
 assert.match(files.app, /createFeatureHost\(APP_FEATURES/, 'optional features must use the public host contract');
+assert.match(files.app, /archetype:\s*state\.puzzle\.caseType/, 'feature events must expose the generated investigation archetype');
+assert.match(files.app, /mounts:\s*featureMounts/, 'optional features must receive stable DOM mounts');
 assert.match(files.app, /publishFeatureEvent\('case-solved'/, 'case completion must expose a stable lifecycle event');
 assert.match(files.app, /publishFeatureEvent\('hint-used'/, 'assistance tracking must expose a stable lifecycle event');
 assert.match(files.app, /publishFeatureEvent\('solution-revealed'/, 'reveals must expose a stable lifecycle event');
