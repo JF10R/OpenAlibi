@@ -66,6 +66,11 @@ assert.deepEqual(await service.listFriends(), { friends: [] });
 assert.equal(calls[0].url, 'https://premium.openalibi.test/v1/friends');
 assert.equal(calls[0].options.credentials, 'include', 'authentication must use secure server cookies');
 assert.equal('Authorization' in calls[0].options.headers, false, 'tokens must never be stored or attached by client code');
+const emptyResponseService = createPremiumService({
+  baseUrl: 'https://premium.openalibi.test',
+  fetchImpl: async () => ({ ok: true, status: 204 }),
+});
+assert.equal(await emptyResponseService.sendFriendRequest('OA-7K2P9'), null, 'successful empty responses must not be parsed as JSON');
 assert.throws(
   () => createPremiumService({ baseUrl: 'http://premium.example.com', fetchImpl: async () => null }),
   /https/i,

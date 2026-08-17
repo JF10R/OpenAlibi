@@ -51,6 +51,7 @@ export function createPremiumService({ baseUrl, fetchImpl = globalThis.fetch } =
       ...(options.body ? { body: JSON.stringify(options.body) } : {}),
     });
     if (!response?.ok) throw new Error(`Premium service request failed (${response?.status ?? 'network'}).`);
+    if (response.status === 204) return null;
     return response.json();
   }
 
