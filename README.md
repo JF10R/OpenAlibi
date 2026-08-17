@@ -18,7 +18,7 @@ English · Français · Español
 
 OpenAlibi is a standalone web puzzle game where every case becomes a logic grid. Rooms, objects, characters, and testimonies are generated procedurally, then checked by an internal constraint solver before the case reaches the player.
 
-The objective is to place every character, locate the victim, and identify the murderer through deduction.
+The objective is to place every character, locate the victim, and identify the murderer through the active investigation rule.
 
 ## Highlights
 
@@ -27,18 +27,20 @@ The objective is to place every character, locate the victim, and identify the m
 | **Verified cases** | The solver rejects cases with no solution or more than one solution. |
 | **Deterministic generation** | The same seed and settings reproduce the same semantic case. |
 | **Procedural maps** | Rooms, furniture, and obstacles follow plausible placement rules. |
+| **Distinct investigations** | Room alibis, evidence trails, and restricted-access cases use different culpability rules. |
+| **Spatial objects** | Rugs, beds, tables, shelves, counters, and puddles can span multiple cells. |
 | **Meaningful difficulty** | Direct, relational, and contextual clues vary across four levels. |
 | **Trilingual interface** | The complete experience supports English, French, and Spanish, including generated names and testimonies. |
 | **Zero runtime dependencies** | The application uses native HTML, CSS, and JavaScript only. |
-| **Complete interface** | Dark mode, printing, hints, JSON export, and responsive layouts are included. |
+| **Complete interface** | Pencil candidates, trial placements, undo/redo, autosave, dark mode, printing, hints, and JSON export are included. |
 
 ## How to play
 
-1. Choose the grid dimensions, character density, and difficulty.
+1. Choose the grid dimensions, difficulty, investigation type, and optional density override.
 2. Read the testimonies and place every character on an occupiable cell.
 3. Never place two characters in the same row or column.
 4. Place the victim last. The victim's name always begins with **V**.
-5. Infer the murderer: they are the only other person in the victim's room.
+5. Apply the case rule shown above the board to infer the murderer.
 
 “Next to” always means an orthogonally adjacent cell in the same room, never a diagonal cell.
 
@@ -49,18 +51,21 @@ The objective is to place every character, locate the victim, and identify the m
 - At most `min(rows, columns)` characters
 - Geometrically constrained room layouts
 - Room-aware placement of occupiable and blocking objects
-- Testimonies based on positions, rooms, objects, directions, and relationships
-- No victim clue that reveals the victim's room or position
-- Automatic murderer inference from the victim-room constraint
+- Multi-cell object entities with footprints, orientation, and occupiable masks
+- Testimonies selected by information gain from a spatial constraint DSL
+- Cardinal directions capped at 20% of clues and once per character
+- Automatic murderer inference from one of three independent culpability rules
 
 ### Difficulty levels
 
 | Level | Experience |
 |---|---|
-| **Easy** | More direct clues and redundant confirmations |
-| **Medium** | A balance of positional, object, and relational clues |
-| **Hard** | Few direct facts and more cross-referenced deductions |
-| **Expert** | No coordinate shortcuts, repeated objects, and more ambiguous relations |
+| **Easy** | 100% density, more direct clues, and redundant confirmations |
+| **Medium** | 85–100% density and balanced positional, object, and relational clues |
+| **Hard** | 70–90% density, few direct facts, and more cross-referenced deductions |
+| **Expert** | 55–80% density, empty rows and columns, no coordinate shortcuts, and repeated objects |
+
+The difficulty selector applies a default density profile. The slider remains an explicit player override.
 
 ## Quick start
 
@@ -115,6 +120,7 @@ Automatically generated seeds contain 10 unambiguous characters. A case identity
 - dimensions;
 - density;
 - difficulty;
+- requested investigation type;
 - the regeneration attempt.
 
 The locale is intentionally excluded from the generation key. Changing languages preserves the map, objects, solution, and case ID while translating names and content.
@@ -134,7 +140,10 @@ The test suites cover:
 - occupiable-cell validity;
 - room and object geometry;
 - victim-clue privacy;
-- automatic murderer inference;
+- three culpability rules and automatic murderer inference;
+- cardinal-clue limits and constraint DSL primitives;
+- multi-cell object entity integrity;
+- draft persistence and undo/redo history;
 - seed reproducibility and identity isolation;
 - translation catalog completeness;
 - locale-specific names and pronouns;
@@ -150,9 +159,11 @@ openalibi/
 ├── src/
 │   ├── app.js                State, rendering, interactions, and locale switching
 │   ├── core.js               Generator, constraints, solver, and validation
-│   └── i18n.js               Message, room, object, title, and name catalogs
+│   ├── i18n.js               Message, room, object, title, and name catalogs
+│   └── progress.js           Draft serialization and immutable undo/redo history
 ├── tests/
 │   ├── generator.test.mjs    Generator and solver tests
+│   ├── progress.test.mjs     Persistence and history tests
 │   ├── i18n.test.mjs         Localization and cross-locale stability tests
 │   └── ui.test.mjs           Static interface contracts
 └── package.json              Project commands
@@ -170,7 +181,7 @@ The domain core is independent of the DOM and runs in both modern browsers and N
 
 ## Contributing
 
-Contributions are welcome.
+Contributions are welcome. See [CONTRIBUTING.md](./CONTRIBUTING.md) for provenance and rights requirements.
 
 1. Create a focused branch.
 2. Make one coherent change.
@@ -182,8 +193,10 @@ Keep source code, tests, documentation, commits, issues, and pull requests in En
 
 ## Project status
 
-OpenAlibi is under active development. The current generator format is **version 5**.
+OpenAlibi is under active development. The current generator format is **version 6**.
 
 ## License
 
 OpenAlibi is available under the [MIT License](./LICENSE). You may use, modify, and redistribute the project provided that the copyright notice and license text are retained.
+
+Project-origin records are maintained in [IP-PROVENANCE.md](./IP-PROVENANCE.md) and [ASSET-SOURCES.md](./ASSET-SOURCES.md). These records are documentation, not legal advice.
