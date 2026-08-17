@@ -66,10 +66,19 @@
                 <option value="expert" data-i18n="difficulty.expert">Expert</option>
               </select>
             </label>
+            <label class="full">
+              <span data-i18n="ui.caseType">Investigation type</span>
+              <select id="case-type">
+                <option value="mixed" data-i18n="caseTypes.mixed" selected>Varied investigations</option>
+                <option value="evidenceTrail" data-i18n="caseTypes.evidenceTrail">Evidence trail</option>
+                <option value="restrictedAccess" data-i18n="caseTypes.restrictedAccess">Restricted access</option>
+                <option value="coPresence" data-i18n="caseTypes.coPresence">Room alibi</option>
+              </select>
+            </label>
             <label class="full range-label">
-              <span><span data-i18n="ui.density">Character density</span> <strong id="density-value">100%</strong></span>
-              <input id="density" type="range" min="55" max="100" step="5" value="100" />
-              <small data-i18n="ui.densityHelp">Maximum: the smaller number of rows or columns.</small>
+              <span><span data-i18n="ui.density">Character density</span> <strong id="density-value">90%</strong></span>
+              <input id="density" type="range" min="55" max="100" step="5" value="90" />
+              <small data-i18n="ui.densityHelp">A difficulty profile is applied automatically; this control overrides it.</small>
             </label>
             <label class="full">
               <span data-i18n="ui.seedLabel">Reproducible seed</span>
@@ -109,14 +118,17 @@
               <h3 data-i18n="ui.crimeScene">Crime scene</h3>
               <p>
                 <span data-i18n="ui.boardIntro">At most one person per row and column.</span>
-                <strong class="board-rule" data-i18n="ui.boardVictimRule">The victim shares a room with exactly one other person.</strong>
+                <strong id="case-rule" class="board-rule">The culpability rule changes with the investigation.</strong>
               </p>
             </div>
             <div class="board-tools">
               <div class="board-mode" role="group" aria-label="Board interaction mode" data-i18n-aria-label="ui.boardMode">
                 <button id="mode-place" class="button ghost compact" type="button" aria-pressed="true" data-i18n="ui.modePlace">Place</button>
                 <button id="mode-mark" class="button ghost compact" type="button" aria-pressed="false" data-i18n="ui.modeMark">Mark ×</button>
+                <button id="mode-candidate" class="button ghost compact" type="button" aria-pressed="false" data-i18n="ui.modeCandidate">Pencil</button>
+                <button id="mode-tentative" class="button ghost compact" type="button" aria-pressed="false" data-i18n="ui.modeTentative">Try</button>
               </div>
+              <button id="board-view-mode" class="button ghost compact" type="button" aria-pressed="false" data-i18n="ui.zoomBoard">Zoom</button>
               <button id="print" class="button ghost compact" type="button" data-i18n="ui.print">Print</button>
             </div>
           </div>
@@ -141,6 +153,8 @@
         <div id="active-character" class="active-character"></div>
         <div class="action-row">
           <button id="check" class="button primary" type="button" data-i18n="ui.check">Check answers</button>
+          <button id="undo" class="button ghost" type="button" data-i18n="ui.undo" disabled>Undo</button>
+          <button id="redo" class="button ghost" type="button" data-i18n="ui.redo" disabled>Redo</button>
           <button id="hint" class="button secondary" type="button" data-i18n="ui.getHint">Get a hint</button>
           <button id="clear" class="button ghost" type="button" data-i18n="ui.clear">Clear</button>
           <button id="reveal" class="button danger" type="button" data-i18n="ui.reveal">Reveal</button>
@@ -164,7 +178,8 @@
       <li><strong data-i18n="ui.rule2Title">Respect rows and columns.</strong> <span data-i18n="ui.rule2Body">Two people can never share a row or column.</span></li>
       <li><strong data-i18n="ui.rule3Title">Respect the map.</strong> <span data-i18n="ui.rule3Body">Blocking furniture cannot be occupied. Chairs, beds, rugs and puddles can.</span></li>
       <li><strong data-i18n="ui.rule4Title">“Next to” is orthogonal.</strong> <span data-i18n="ui.rule4Body">The cell must be directly above, below, left or right, and in the same room.</span></li>
-      <li><strong data-i18n="ui.rule5Title">The murderer is inferred automatically.</strong> <span data-i18n="ui.rule5Body">When answers are checked, the person alone with the victim is identified as the murderer.</span></li>
+      <li><strong data-i18n="ui.rule5Title">The murderer is inferred automatically.</strong> <span data-i18n="ui.rule5Body">Each investigation defines its own culpability rule: room alibi, evidence trail, or restricted access.</span></li>
+      <li><strong data-i18n="ui.rule6Title">Keep a working theory.</strong> <span data-i18n="ui.rule6Body">Pencil candidates and tentative placements are saved automatically and can be undone.</span></li>
     </ol>
     <p data-i18n="ui.rectangleRule">Rectangular grids use at most min(rows, columns) characters to preserve the row-column constraint.</p>
   </dialog>

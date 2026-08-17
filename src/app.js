@@ -1,4 +1,5 @@
 import {
+  DIFFICULTIES,
   OBJECT_TYPES,
   createRandomSeed,
   describeHint,
@@ -8,6 +9,16 @@ import {
   serializePuzzle,
   validatePlayerState,
 } from './core.js';
+import {
+  cloneProgress,
+  commitHistory,
+  createHistory,
+  createProgress,
+  redoHistory,
+  restoreDraft,
+  serializeDraft,
+  undoHistory,
+} from './progress.js';
 import {
   SUPPORTED_LOCALES,
   getObjectCopy,
@@ -21,13 +32,17 @@ const state = {
   puzzle: null,
   selectedCharacterId: null,
   placements: {},
-  exclusions: new Set(),
+  tentativePlacements: {},
+  manualExclusionsByCharacter: {},
+  candidateCellsByCharacter: {},
   pendingRemovalKey: null,
   feedback: null,
   hintedFacts: new Set(),
   status: null,
   interactionMode: 'place',
   focusedCellKey: null,
+  history: null,
+  boardViewMode: 'fit',
 };
 
 const dom = {
@@ -37,22 +52,30 @@ const dom = {
   activeCharacter: document.querySelector('#active-character'),
   placeMode: document.querySelector('#mode-place'),
   markMode: document.querySelector('#mode-mark'),
+  candidateMode: document.querySelector('#mode-candidate'),
+  tentativeMode: document.querySelector('#mode-tentative'),
+  boardViewMode: document.querySelector('#board-view-mode'),
   language: document.querySelector('#language'),
   rows: document.querySelector('#rows'),
   cols: document.querySelector('#cols'),
   density: document.querySelector('#density'),
   densityValue: document.querySelector('#density-value'),
   difficulty: document.querySelector('#difficulty'),
+  caseType: document.querySelector('#case-type'),
   seed: document.querySelector('#seed'),
   generate: document.querySelector('#generate'),
   title: document.querySelector('#case-title'),
   meta: document.querySelector('#case-meta'),
+  caseRule: document.querySelector('#case-rule'),
   victim: document.querySelector('#victim-name'),
+  boardScroll: document.querySelector('.board-scroll'),
   board: document.querySelector('#board'),
   suspects: document.querySelector('#suspects'),
   themeToggle: document.querySelector('#theme-toggle'),
   themeColor: document.querySelector('#theme-color'),
   check: document.querySelector('#check'),
+  undo: document.querySelector('#undo'),
+  redo: document.querySelector('#redo'),
   clear: document.querySelector('#clear'),
   hint: document.querySelector('#hint'),
   reveal: document.querySelector('#reveal'),
@@ -69,6 +92,8 @@ const dom = {
 
 const THEME_STORAGE_KEY = 'openalibi-theme';
 const LOCALE_STORAGE_KEY = 'openalibi-locale';
+const CURRENT_DRAFT_STORAGE_KEY = 'openalibi-current-draft';
+const DRAFT_STORAGE_PREFIX = 'openalibi-draft:';
 const MOBILE_LAYOUT_QUERY = [
   '(max-width: 720px)',
   '(max-width: 960px) and (max-height: 600px) and (orientation: landscape) and (pointer: coarse)',
@@ -97,12 +122,111 @@ function showBoardOnMobile() {
 }
 
 function setInteractionMode(mode, announce = true) {
-  state.interactionMode = mode === 'mark' ? 'mark' : 'place';
-  const marking = state.interactionMode === 'mark';
+  const modes = ['place', 'mark', 'candidate', 'tentative'];
+  state.interactionMode = modes.includes(mode) ? mode : 'place';
   dom.board.dataset.mode = state.interactionMode;
-  dom.placeMode.setAttribute('aria-pressed', String(!marking));
-  dom.markMode.setAttribute('aria-pressed', String(marking));
-  if (announce) setStatus(marking ? 'status.markMode' : 'status.placeMode');
+  dom.placeMode.setAttribute('aria-pressed', String(state.interactionMode === 'place'));
+  dom.markMode.setAttribute('aria-pressed', String(state.interactionMode === 'mark'));
+  dom.candidateMode.setAttribute('aria-pressed', String(state.interactionMode === 'candidate'));
+  dom.tentativeMode.setAttribute('aria-pressed', String(state.interactionMode === 'tentative'));
+  if (announce) {
+    setStatus({
+      place: 'status.placeMode',
+      mark: 'status.markMode',
+      candidate: 'status.candidateMode',
+      tentative: 'status.tentativeMode',
+    }[state.interactionMode]);
+  }
+}
+
+function progressFromState() {
+  return {
+    placements: state.placements,
+    tentativePlacements: state.tentativePlacements,
+    manualExclusionsByCharacter: state.manualExclusionsByCharacter,
+    candidateCellsByCharacter: state.candidateCellsByCharacter,
+    hintedFacts: state.hintedFacts,
+    selectedCharacterId: state.selectedCharacterId,
+  };
+}
+
+function applyProgress(progress) {
+  const copy = cloneProgress(progress);
+  state.placements = copy.placements;
+  state.tentativePlacements = copy.tentativePlacements;
+  state.manualExclusionsByCharacter = copy.manualExclusionsByCharacter;
+  state.candidateCellsByCharacter = copy.candidateCellsByCharacter;
+  state.hintedFacts = copy.hintedFacts;
+  state.selectedCharacterId = copy.selectedCharacterId;
+  state.pendingRemovalKey = null;
+  state.feedback = null;
+}
+
+function updateHistoryControls() {
+  dom.undo.disabled = !state.history?.past.length;
+  dom.redo.disabled = !state.history?.future.length;
+}
+
+function persistDraft() {
+  if (!state.puzzle) return;
+  try {
+    const serialized = serializeDraft(state.puzzle, progressFromState());
+    localStorage.setItem(`${DRAFT_STORAGE_PREFIX}${state.puzzle.id}`, serialized);
+    localStorage.setItem(CURRENT_DRAFT_STORAGE_KEY, serialized);
+  } catch {
+    // Progress remains available for the current session when storage is unavailable.
+  }
+}
+
+function commitProgress(mutator) {
+  mutator();
+  state.history = commitHistory(state.history, progressFromState());
+  updateHistoryControls();
+  persistDraft();
+}
+
+function initializeProgress(puzzle) {
+  let progress = createProgress(puzzle);
+  let restored = false;
+  try {
+    const serialized = localStorage.getItem(`${DRAFT_STORAGE_PREFIX}${puzzle.id}`);
+    if (serialized) {
+      progress = restoreDraft(serialized, puzzle).progress;
+      restored = true;
+    }
+  } catch {
+    // Invalid or unavailable storage falls back to an empty case.
+  }
+  applyProgress(progress);
+  state.history = createHistory(progress);
+  updateHistoryControls();
+  return restored;
+}
+
+function undoProgress() {
+  const next = undoHistory(state.history);
+  if (next === state.history) {
+    setStatus('status.undoUnavailable', {}, 'warning');
+    return;
+  }
+  state.history = next;
+  applyProgress(next.present);
+  updateHistoryControls();
+  persistDraft();
+  render();
+}
+
+function redoProgress() {
+  const next = redoHistory(state.history);
+  if (next === state.history) {
+    setStatus('status.redoUnavailable', {}, 'warning');
+    return;
+  }
+  state.history = next;
+  applyProgress(next.present);
+  updateHistoryControls();
+  persistDraft();
+  render();
 }
 
 function moveBoardFocus(cell, event) {
@@ -128,17 +252,64 @@ function toggleExclusion(cell) {
   const occupant = state.puzzle.characters.find(
     (character) => state.placements[character.id] === cell.key,
   );
-  if (!cell.occupiable || occupant || isAutomaticallyExcluded(cell)) {
+  const characterId = state.selectedCharacterId;
+  if (!characterId || !cell.occupiable || occupant || isAutomaticallyExcluded(cell)) {
     setStatus('status.markUnavailable', {}, 'warning');
     return;
   }
-  const removed = state.exclusions.delete(cell.key);
-  if (!removed) state.exclusions.add(cell.key);
-  state.pendingRemovalKey = null;
-  state.feedback = null;
+  const exclusions = state.manualExclusionsByCharacter[characterId];
+  const removed = exclusions.has(cell.key);
+  commitProgress(() => {
+    if (removed) exclusions.delete(cell.key);
+    else exclusions.add(cell.key);
+    state.pendingRemovalKey = null;
+    state.feedback = null;
+  });
   renderBoard();
   focusBoardCell(cell.key);
-  setStatus(removed ? 'status.markRemoved' : 'status.markAdded', { cellKey: cell.key });
+  setStatus(removed ? 'status.markRemoved' : 'status.markAdded', {
+    cellKey: cell.key,
+    characterId,
+  });
+}
+
+function toggleCandidate(cell) {
+  const characterId = state.selectedCharacterId;
+  if (!characterId || !cell.occupiable) {
+    setStatus('status.markUnavailable', {}, 'warning');
+    return;
+  }
+  const candidates = state.candidateCellsByCharacter[characterId];
+  const removed = candidates.has(cell.key);
+  commitProgress(() => {
+    if (removed) candidates.delete(cell.key);
+    else candidates.add(cell.key);
+  });
+  renderBoard();
+  focusBoardCell(cell.key);
+  setStatus(removed ? 'status.candidateRemoved' : 'status.candidateAdded', {
+    cellKey: cell.key,
+    characterId,
+  });
+}
+
+function toggleTentativePlacement(cell) {
+  const characterId = state.selectedCharacterId;
+  if (!characterId || !cell.occupiable) {
+    setStatus('status.blockedCell', {}, 'error');
+    return;
+  }
+  const removed = state.tentativePlacements[characterId] === cell.key;
+  commitProgress(() => {
+    if (removed) delete state.tentativePlacements[characterId];
+    else state.tentativePlacements[characterId] = cell.key;
+  });
+  renderBoard();
+  focusBoardCell(cell.key);
+  setStatus(removed ? 'status.tentativeRemoved' : 'status.tentativeAdded', {
+    cellKey: cell.key,
+    characterId,
+  });
 }
 
 function getInitialLocale() {
@@ -179,14 +350,15 @@ function applyTheme(theme, persist = true) {
 const OBJECT_SVGS = {
   chair: `
     <svg viewBox="0 0 32 32" aria-hidden="true">
-      <path d="M9 13h14v10H9z" />
-      <path d="M10 13V8.5c0-1.4 1.1-2.5 2.5-2.5h7c1.4 0 2.5 1.1 2.5 2.5V13M11 23v4M21 23v4" />
+      <rect x="7" y="8" width="18" height="18" rx="4" />
+      <path d="M8 10h16M10 13h12v10H10z" />
+      <circle cx="10" cy="25" r="1.2" /><circle cx="22" cy="25" r="1.2" />
     </svg>`,
   bed: `
     <svg viewBox="0 0 32 32" aria-hidden="true">
-      <rect x="4" y="6" width="24" height="21" rx="3" />
-      <path d="M4 13h24M10 13V9h8v4M7 27v2M25 27v2" />
-      <path d="M20 17h5M20 21h5" opacity=".55" />
+      <rect x="3" y="5" width="26" height="22" rx="3" />
+      <rect x="6" y="8" width="8" height="16" rx="2" />
+      <path d="M16 7v18M19 11h7M19 16h7M19 21h7" opacity=".6" />
     </svg>`,
   carpet: `
     <svg viewBox="0 0 32 32" aria-hidden="true">
@@ -202,13 +374,14 @@ const OBJECT_SVGS = {
   table: `
     <svg viewBox="0 0 32 32" aria-hidden="true">
       <ellipse cx="16" cy="15" rx="11" ry="8" />
-      <path d="M9 21v6M23 21v6M8 10l-2-3M24 10l2-3" />
-      <ellipse cx="16" cy="15" rx="6" ry="3.5" opacity=".45" />
+      <ellipse cx="16" cy="15" rx="7" ry="4.5" opacity=".45" />
+      <circle cx="8" cy="15" r="1" /><circle cx="24" cy="15" r="1" />
     </svg>`,
   shelf: `
     <svg viewBox="0 0 32 32" aria-hidden="true">
-      <rect x="6" y="4" width="20" height="24" rx="2" />
-      <path d="M6 12h20M6 20h20M10 6v6M15 7v5M20 5v7M11 13v7M17 14v6M22 13v7M9 21v7M15 22v6M21 21v7" />
+      <rect x="4" y="8" width="24" height="16" rx="2" />
+      <path d="M8 8v16M13 8v16M19 8v16M24 8v16" />
+      <path d="M5 11h22M5 21h22" opacity=".55" />
     </svg>`,
   plant: `
     <svg viewBox="0 0 32 32" aria-hidden="true">
@@ -217,15 +390,15 @@ const OBJECT_SVGS = {
     </svg>`,
   counter: `
     <svg viewBox="0 0 32 32" aria-hidden="true">
-      <rect x="4" y="7" width="24" height="19" rx="3" />
-      <path d="M4 12h24M9 16h14M9 20h9M7 26v2M25 26v2" />
-      <circle cx="24" cy="9.5" r="1" />
+      <rect x="3" y="8" width="26" height="16" rx="3" />
+      <path d="M5 12h22M9 15h10v6H9z" />
+      <circle cx="24" cy="18" r="2" />
     </svg>`,
   tv: `
     <svg viewBox="0 0 32 32" aria-hidden="true">
-      <rect x="4" y="6" width="24" height="18" rx="3" />
-      <path d="M8 10h16v10H8zM12 28h8M16 24v4M11 3l5 3 5-3" />
-      <circle cx="25" cy="21" r="1" />
+      <rect x="4" y="10" width="24" height="11" rx="2" />
+      <path d="M7 13h18v5H7zM11 24h10M16 21v3" />
+      <circle cx="26" cy="19" r=".8" />
     </svg>`,
   statue: `
     <svg viewBox="0 0 32 32" aria-hidden="true">
@@ -313,19 +486,18 @@ function generate(seed = createRandomSeed(), focusCase = false) {
         cols: Number(dom.cols.value),
         density: Number(dom.density.value) / 100,
         difficulty: dom.difficulty.value,
+        caseType: dom.caseType.value,
         seed: requestedSeed,
         locale: state.locale,
       });
-      state.selectedCharacterId = state.puzzle.characters.find((character) => !character.isVictim)?.id ?? state.puzzle.victimId;
-      state.placements = {};
-      state.exclusions = new Set();
+      const restored = initializeProgress(state.puzzle);
       state.pendingRemovalKey = null;
       state.feedback = null;
-      state.hintedFacts = new Set();
       state.focusedCellKey = state.puzzle.cells.find((cell) => cell.occupiable)?.key ?? null;
       setInteractionMode('place', false);
       render();
-      setStatus('status.generated', {}, 'success');
+      persistDraft();
+      setStatus(restored ? 'status.draftRestored' : 'status.generated', {}, 'success');
       if (mobileLayout.matches) dom.caseSettings.open = false;
       if (focusCase) scrollIntoView(dom.caseHeader);
     } catch (error) {
@@ -341,6 +513,7 @@ function render() {
   renderHeader();
   renderSuspects();
   renderBoard();
+  setBoardViewMode(state.boardViewMode);
 }
 
 function renderHeader() {
@@ -350,13 +523,19 @@ function renderHeader() {
     ? puzzle.characters.find((character) => character.id === puzzle.victimId).name
     : '—';
   const level = translate(state.locale, `difficulty.${puzzle.difficulty}`);
+  const caseType = translate(state.locale, `caseTypes.${puzzle.caseType}`);
   dom.meta.textContent = translate(state.locale, 'ui.caseMeta', {
     rows: puzzle.rows,
     cols: puzzle.cols,
     count: puzzle.characters.length,
     difficulty: level,
+    caseType,
     seed: dom.seed.value,
   });
+  dom.caseRule.textContent = translate(
+    state.locale,
+    `ui.boardRule${puzzle.caseType[0].toUpperCase()}${puzzle.caseType.slice(1)}`,
+  );
 }
 
 function avatarMarkup(character, small = false) {
@@ -424,14 +603,14 @@ function renderSuspects() {
     `;
     card.addEventListener('click', () => {
       const unplacedNonVictim = puzzle.characters.find((item) => !item.isVictim && !state.placements[item.id]);
-      if (character.isVictim && unplacedNonVictim) {
+      if (character.isVictim && unplacedNonVictim && state.interactionMode === 'place') {
         setStatus('status.placeOthersFirst', {}, 'warning');
         return;
       }
       state.pendingRemovalKey = null;
       state.selectedCharacterId = character.id;
       state.feedback = null;
-      setInteractionMode('place', false);
+      persistDraft();
       renderSuspects();
       renderBoard();
       showBoardOnMobile();
@@ -470,9 +649,39 @@ function isAutomaticallyExcluded(cell) {
   });
 }
 
+function fitBoardToViewport() {
+  if (!state.puzzle || state.boardViewMode === 'zoom') return false;
+  const width = Math.max(1, dom.boardScroll.clientWidth - 14);
+  const height = Math.max(1, dom.boardScroll.clientHeight - 14);
+  const cellSize = Math.max(22, Math.min(
+    82,
+    Math.floor(width / state.puzzle.cols),
+    Math.floor(height / state.puzzle.rows),
+  ));
+  const nextValue = `${cellSize}px`;
+  const changed = dom.board.style.getPropertyValue('--cell-size') !== nextValue;
+  dom.board.style.setProperty('--cell-size', nextValue);
+  return changed;
+}
+
+function setBoardViewMode(mode) {
+  state.boardViewMode = mode === 'zoom' ? 'zoom' : 'fit';
+  const zoomed = state.boardViewMode === 'zoom';
+  dom.board.dataset.view = state.boardViewMode;
+  dom.boardScroll.dataset.view = state.boardViewMode;
+  dom.boardViewMode.setAttribute('aria-pressed', String(zoomed));
+  dom.boardViewMode.textContent = translate(
+    state.locale,
+    zoomed ? 'ui.fitBoard' : 'ui.zoomBoard',
+  );
+  if (zoomed) dom.board.style.removeProperty('--cell-size');
+  else fitBoardToViewport();
+}
+
 function renderBoard() {
   const puzzle = state.puzzle;
   const roomById = new Map(puzzle.rooms.map((room) => [room.id, room]));
+  const objectById = new Map(puzzle.objects.map((object) => [object.id, object]));
   const selectedPlacement = state.selectedCharacterId ? state.placements[state.selectedCharacterId] : null;
   const selectedCell = selectedPlacement ? puzzle.cellByKey.get(selectedPlacement) : null;
   dom.board.innerHTML = '';
@@ -492,10 +701,20 @@ function renderBoard() {
     element.style.setProperty('--room-color', roomById.get(cell.roomId).color);
     if (!cell.occupiable) element.classList.add('blocked');
     if (cell.object) element.classList.add('has-object', `cell-object-${cell.object}`);
-    if (state.exclusions.has(cell.key)) element.classList.add('excluded');
+    const manualCharacters = puzzle.characters.filter((character) => (
+      state.manualExclusionsByCharacter[character.id]?.has(cell.key)
+    ));
+    const candidateCharacters = puzzle.characters.filter((character) => (
+      state.candidateCellsByCharacter[character.id]?.has(cell.key)
+    ));
+    if (manualCharacters.length) element.classList.add('excluded');
+    if (candidateCharacters.length) element.classList.add('has-candidates');
     if (selectedCell && (selectedCell.row === cell.row || selectedCell.col === cell.col)) element.classList.add('selected-line');
 
     const occupant = puzzle.characters.find((character) => state.placements[character.id] === cell.key);
+    const tentativeOccupant = !occupant
+      ? puzzle.characters.find((character) => state.tentativePlacements[character.id] === cell.key)
+      : null;
     const pendingRemoval = state.pendingRemovalKey === cell.key && Boolean(occupant);
     const automaticallyExcluded = !occupant && isAutomaticallyExcluded(cell);
     if (automaticallyExcluded) element.classList.add('auto-excluded');
@@ -505,8 +724,11 @@ function renderBoard() {
       const feedback = state.feedback?.characterResults?.[occupant.id];
       if (feedback) element.classList.add(feedback.correct ? 'correct' : 'wrong');
     }
+    if (tentativeOccupant) element.classList.add('tentative');
 
     const object = cell.object ? OBJECT_TYPES[cell.object] : null;
+    const objectInstance = cell.objectId ? objectById.get(cell.objectId) : null;
+    const showInlineObject = object && objectInstance?.footprint.length === 1;
     const objectCopy = cell.object ? getObjectCopy(state.locale, cell.object) : null;
     const objectAria = object
       ? translate(state.locale, 'ui.cellObjectAria', {
@@ -523,6 +745,8 @@ function renderBoard() {
         pendingRemoval ? 'ui.cellRemovalAria' : 'ui.cellOccupantAria',
         { name: occupant.name },
       )
+      : tentativeOccupant
+        ? `, ${translate(state.locale, 'ui.tentativeOccupant', { name: tentativeOccupant.name })}`
       : '';
     element.setAttribute(
       'aria-label',
@@ -534,11 +758,18 @@ function renderBoard() {
       }),
     );
     element.innerHTML = `
-      ${object ? objectMarkup(cell.object, object, cell.occupiable) : ''}
+      ${showInlineObject ? objectMarkup(cell.object, object, cell.occupiable) : ''}
       ${occupant ? avatarMarkup(occupant, true) : ''}
+      ${tentativeOccupant ? avatarMarkup(tentativeOccupant, true).replace('avatar ', 'avatar ghost-avatar ') : ''}
       ${pendingRemoval ? `<span class="removal-confirmation">${translate(state.locale, 'ui.removeConfirmation')}</span>` : ''}
-      ${(state.exclusions.has(cell.key) || automaticallyExcluded) && !occupant
-        ? `<span class="x-mark${automaticallyExcluded ? ' auto-exclusion' : ''}">×</span>`
+      ${automaticallyExcluded && !occupant
+        ? '<span class="x-mark auto-exclusion">×</span>'
+        : ''}
+      ${manualCharacters.length && !occupant
+        ? `<span class="manual-notes">${manualCharacters.map((character) => `<i>×${escapeHtml(character.name[0])}</i>`).join('')}</span>`
+        : ''}
+      ${candidateCharacters.length && !occupant
+        ? `<span class="candidate-notes">${candidateCharacters.map((character) => `<i style="--avatar-hue:${character.avatarHue}">${escapeHtml(character.name[0])}</i>`).join('')}</span>`
         : ''}
       <span class="coordinate">${cell.row + 1}.${cell.col + 1}</span>
     `;
@@ -548,11 +779,10 @@ function renderBoard() {
     });
     element.addEventListener('keydown', (event) => moveBoardFocus(cell, event));
     element.addEventListener('click', () => {
-      if (state.interactionMode === 'mark') {
-        toggleExclusion(cell);
-      } else {
-        placeSelected(cell);
-      }
+      if (state.interactionMode === 'mark') toggleExclusion(cell);
+      else if (state.interactionMode === 'candidate') toggleCandidate(cell);
+      else if (state.interactionMode === 'tentative') toggleTentativePlacement(cell);
+      else placeSelected(cell);
     });
     element.addEventListener('contextmenu', (event) => {
       event.preventDefault();
@@ -561,6 +791,7 @@ function renderBoard() {
     dom.board.appendChild(element);
   }
 
+  fitBoardToViewport();
   const boardBounds = dom.board.getBoundingClientRect();
   const firstCellBounds = dom.board.querySelector('.cell').getBoundingClientRect();
   const cellSize = firstCellBounds.width;
@@ -588,6 +819,27 @@ function renderBoard() {
     positionRoomLayer(label, room);
     dom.board.appendChild(label);
   }
+
+  for (const object of puzzle.objects.filter((item) => item.footprint.length > 1)) {
+    const footprintCells = object.footprint.map((key) => puzzle.cellByKey.get(key));
+    const minRow = Math.min(...footprintCells.map((cell) => cell.row));
+    const maxRow = Math.max(...footprintCells.map((cell) => cell.row));
+    const minCol = Math.min(...footprintCells.map((cell) => cell.col));
+    const maxCol = Math.max(...footprintCells.map((cell) => cell.col));
+    const layer = document.createElement('span');
+    layer.className = `object-entity object-entity-${object.type} orientation-${object.orientation}`;
+    layer.style.left = `${originLeft + minCol * cellSize}px`;
+    layer.style.top = `${originTop + minRow * cellSize}px`;
+    layer.style.width = `${(maxCol - minCol + 1) * cellSize}px`;
+    layer.style.height = `${(maxRow - minRow + 1) * cellSize}px`;
+    layer.innerHTML = objectMarkup(
+      object.type,
+      OBJECT_TYPES[object.type],
+      object.occupiableMask.length > 0,
+    );
+    dom.board.appendChild(layer);
+  }
+
 }
 
 function placeSelected(cell) {
@@ -609,9 +861,11 @@ function placeSelected(cell) {
       }, 'warning');
       return;
     }
-    delete state.placements[occupant.id];
-    state.pendingRemovalKey = null;
-    state.feedback = null;
+    commitProgress(() => {
+      delete state.placements[occupant.id];
+      state.pendingRemovalKey = null;
+      state.feedback = null;
+    });
     render();
     focusBoardCell(cell.key);
     setStatus('status.characterRemoved');
@@ -645,13 +899,17 @@ function placeSelected(cell) {
     return;
   }
 
-  state.placements[characterId] = cell.key;
-  state.pendingRemovalKey = null;
-  state.exclusions.delete(cell.key);
-  state.feedback = null;
+  commitProgress(() => {
+    state.placements[characterId] = cell.key;
+    delete state.tentativePlacements[characterId];
+    state.manualExclusionsByCharacter[characterId].delete(cell.key);
+    state.candidateCellsByCharacter[characterId].delete(cell.key);
+    state.pendingRemovalKey = null;
+    state.feedback = null;
 
-  const next = puzzle.characters.find((character) => !state.placements[character.id]);
-  if (next) state.selectedCharacterId = next.id;
+    const next = puzzle.characters.find((character) => !state.placements[character.id]);
+    if (next) state.selectedCharacterId = next.id;
+  });
   render();
   focusBoardCell(cell.key);
   setStatus('status.characterPlaced', {
@@ -697,11 +955,7 @@ function checkAnswers() {
 }
 
 function clearBoard() {
-  state.placements = {};
-  state.exclusions = new Set();
-  state.pendingRemovalKey = null;
-  state.feedback = null;
-  state.hintedFacts = new Set();
+  commitProgress(() => applyProgress(createProgress(state.puzzle)));
   state.focusedCellKey = state.puzzle.cells.find((cell) => cell.occupiable)?.key ?? null;
   setInteractionMode('place', false);
   render();
@@ -724,8 +978,10 @@ function giveHint() {
     return;
   }
   const { character, hintType } = candidates[Math.floor(Math.random() * candidates.length)];
-  state.hintedFacts.add(`${character.id}:${hintType}`);
-  state.selectedCharacterId = character.id;
+  commitProgress(() => {
+    state.hintedFacts.add(`${character.id}:${hintType}`);
+    state.selectedCharacterId = character.id;
+  });
   renderSuspects();
   renderBoard();
   setStatus('status.hint', { characterId: character.id, hintType }, 'warning');
@@ -734,9 +990,12 @@ function giveHint() {
 function revealSolution() {
   const confirmed = window.confirm(translate(state.locale, 'ui.confirmReveal'));
   if (!confirmed) return;
-  state.placements = { ...state.puzzle.solution };
-  state.pendingRemovalKey = null;
-  state.feedback = validatePlayerState(state.puzzle, state.placements);
+  commitProgress(() => {
+    state.placements = { ...state.puzzle.solution };
+    state.tentativePlacements = {};
+    state.pendingRemovalKey = null;
+    state.feedback = validatePlayerState(state.puzzle, state.placements);
+  });
   render();
   const killer = state.puzzle.characters.find((character) => character.id === state.puzzle.killerId);
   setStatus('status.revealed', { characterId: killer.id }, 'warning');
@@ -764,9 +1023,19 @@ function escapeHtml(value) {
 dom.density.addEventListener('input', () => {
   dom.densityValue.textContent = `${dom.density.value}%`;
 });
+dom.difficulty.addEventListener('change', () => {
+  const density = Math.round(DIFFICULTIES[dom.difficulty.value].defaultDensity * 100);
+  dom.density.value = String(density);
+  dom.densityValue.textContent = `${density}%`;
+});
 dom.language.addEventListener('change', () => applyLocale(dom.language.value));
 dom.placeMode.addEventListener('click', () => setInteractionMode('place'));
 dom.markMode.addEventListener('click', () => setInteractionMode('mark'));
+dom.candidateMode.addEventListener('click', () => setInteractionMode('candidate'));
+dom.tentativeMode.addEventListener('click', () => setInteractionMode('tentative'));
+dom.boardViewMode.addEventListener('click', () => {
+  setBoardViewMode(state.boardViewMode === 'fit' ? 'zoom' : 'fit');
+});
 dom.generate.addEventListener('click', () => generate(createRandomSeed(), true));
 dom.seed.addEventListener('keydown', (event) => {
   if (event.key !== 'Enter') return;
@@ -774,6 +1043,8 @@ dom.seed.addEventListener('keydown', (event) => {
   generate(dom.seed.value, true);
 });
 dom.check.addEventListener('click', checkAnswers);
+dom.undo.addEventListener('click', undoProgress);
+dom.redo.addEventListener('click', redoProgress);
 dom.clear.addEventListener('click', clearBoard);
 dom.hint.addEventListener('click', giveHint);
 dom.reveal.addEventListener('click', revealSolution);
@@ -787,10 +1058,39 @@ dom.themeToggle.addEventListener('click', () => {
 });
 mobileLayout.addEventListener('change', (event) => {
   dom.caseSettings.open = !event.matches;
+  state.boardViewMode = event.matches ? state.boardViewMode : 'fit';
+  setBoardViewMode(state.boardViewMode);
+});
+new ResizeObserver(() => {
+  if (fitBoardToViewport()) window.requestAnimationFrame(() => renderBoard());
+}).observe(dom.boardScroll);
+document.addEventListener('keydown', (event) => {
+  if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
+  if (event.key.toLowerCase() === 'z' && !event.shiftKey) {
+    event.preventDefault();
+    undoProgress();
+  } else if (event.key.toLowerCase() === 'y' || (event.key.toLowerCase() === 'z' && event.shiftKey)) {
+    event.preventDefault();
+    redoProgress();
+  }
 });
 
 state.locale = getInitialLocale();
 dom.caseSettings.open = !mobileLayout.matches;
 applyTheme(document.documentElement.dataset.theme, false);
 applyLocale(state.locale, false);
-generate(createRandomSeed());
+let initialGeneration = null;
+try {
+  initialGeneration = JSON.parse(localStorage.getItem(CURRENT_DRAFT_STORAGE_KEY))?.generation ?? null;
+} catch {
+  // Start a fresh case when the current draft is unavailable or invalid.
+}
+if (initialGeneration) {
+  dom.rows.value = initialGeneration.rows;
+  dom.cols.value = initialGeneration.cols;
+  dom.difficulty.value = initialGeneration.difficulty;
+  dom.caseType.value = initialGeneration.caseType;
+  dom.density.value = Math.round(initialGeneration.density * 100);
+  dom.densityValue.textContent = `${dom.density.value}%`;
+}
+generate(initialGeneration?.seed ?? createRandomSeed());

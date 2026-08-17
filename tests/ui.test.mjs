@@ -22,11 +22,22 @@ assert.match(files.index, /id="theme-toggle"/, 'the interface must expose a them
 assert.match(files.index, /id="case-settings"/, 'case settings must use a mobile-friendly disclosure');
 assert.match(files.index, /id="mode-place"/, 'the board must expose an explicit placement mode');
 assert.match(files.index, /id="mode-mark"/, 'touch users must have an explicit exclusion mode');
+assert.match(files.index, /id="mode-candidate"/, 'players must have a per-character pencil mode');
+assert.match(files.index, /id="mode-tentative"/, 'players must have a tentative placement mode');
+assert.match(files.index, /id="undo"/, 'the action bar must expose undo');
+assert.match(files.index, /id="redo"/, 'the action bar must expose redo');
+assert.match(files.index, /id="case-type"/, 'settings must expose investigation archetypes');
+assert.match(files.index, /id="board-view-mode"/, 'small screens must switch between fit and zoom modes');
 assert.match(files.index, /id="active-character"/, 'mobile players must retain selected-character context near the board');
 assert.match(files.index, /enterkeyhint="go"/, 'the seed field must expose a mobile submit key');
 assert.match(files.styles, /:root\[data-theme=['"]dark['"]\]/, 'a dark color theme must be defined');
 assert.match(files.app, /openalibi-theme/, 'the selected theme must be persisted');
 assert.match(files.app, /openalibi-locale/, 'the selected locale must be persisted');
+assert.match(files.app, /openalibi-current-draft/, 'the active case must be restored across sessions');
+assert.match(files.app, /serializeDraft/, 'progress persistence must use the validated draft serializer');
+assert.match(files.app, /commitHistory/, 'player mutations must be recorded in undo history');
+assert.match(files.app, /ResizeObserver/, 'board fit must react to viewport and panel size changes');
+assert.match(files.app, /fitBoardToViewport/, 'board sizing must use available width and height');
 assert.match(files.index, /id="language"/, 'the interface must expose a language selector');
 for (const locale of SUPPORTED_LOCALES) {
   assert.match(files.index, new RegExp(`<option value="${locale}"`), `${locale} must be selectable`);
@@ -78,6 +89,11 @@ assert.match(
   'confirmed removal must remove the actual occupant',
 );
 assert.match(files.app, /\btv:\s*`/, 'the interface must draw televisions explicitly');
+assert.match(files.app, /object-entity/, 'multi-cell objects must render as unified visual entities');
+assert.match(files.styles, /\.candidate-notes/, 'per-character pencil notes must remain visible in cells');
+assert.match(files.styles, /\.ghost-avatar/, 'tentative placements must be visually distinct');
+assert.match(files.styles, /@media \(min-width: 1121px\) and \(min-height: 700px\)/, 'desktop must use a viewport-constrained workspace');
+assert.match(files.styles, /body\s*\{[^}]*overflow:\s*hidden/s, 'desktop mode must avoid page scrolling');
 assert.match(
   files.app,
   /\.filter\(\(character\) => !character\.isVictim && state\.placements\[character\.id\] !== puzzle\.solution\[character\.id\]\)/,
