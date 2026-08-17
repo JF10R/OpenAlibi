@@ -15,13 +15,15 @@ import {
   translate,
 } from './i18n.js';
 
-export const GENERATOR_VERSION = 5;
+export const GENERATOR_VERSION = 6;
 export const RANDOM_SEED_LENGTH = 10;
 
 const RANDOM_SEED_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 
 export const DIFFICULTIES = {
   facile: {
+    densityRange: [1, 1],
+    defaultDensity: 1,
     roomFactor: 0.75,
     obstacleRate: 0.11,
     extraClues: 0.65,
@@ -31,6 +33,8 @@ export const DIFFICULTIES = {
     objectRepeatTarget: 1,
   },
   moyen: {
+    densityRange: [0.85, 1],
+    defaultDensity: 0.9,
     roomFactor: 0.9,
     obstacleRate: 0.15,
     extraClues: 0.35,
@@ -40,6 +44,8 @@ export const DIFFICULTIES = {
     objectRepeatTarget: 2,
   },
   difficile: {
+    densityRange: [0.7, 0.9],
+    defaultDensity: 0.8,
     roomFactor: 1.05,
     obstacleRate: 0.19,
     extraClues: 0.12,
@@ -49,6 +55,8 @@ export const DIFFICULTIES = {
     objectRepeatTarget: 3,
   },
   expert: {
+    densityRange: [0.55, 0.8],
+    defaultDensity: 0.7,
     roomFactor: 1.18,
     obstacleRate: 0.22,
     extraClues: 0,
@@ -59,6 +67,21 @@ export const DIFFICULTIES = {
   },
 };
 
+export const CASE_TYPES = {
+  coPresence: { narrativeClue: 'victimWithKiller', weight: 0.25 },
+  evidenceTrail: { narrativeClue: 'evidenceTrail', weight: 0.45 },
+  restrictedAccess: { narrativeClue: 'restrictedAccess', weight: 0.3 },
+};
+
+export const CONSTRAINT_TYPES = [
+  'room', 'row', 'col', 'rowHalf', 'colHalf', 'onObject', 'besideObject',
+  'notBesideObject', 'aloneInRoom', 'sameRoom', 'notSameRoom', 'northOf',
+  'southOf', 'westOf', 'eastOf', 'besidePerson', 'distanceFromObject',
+  'roomPosition',
+];
+
+const CARDINAL_CLUE_TYPES = new Set(['northOf', 'southOf', 'westOf', 'eastOf']);
+
 const ROOM_TYPES = {
   large: ['livingRoom', 'diningRoom', 'library', 'gallery', 'workshop', 'meetingRoom', 'indoorGarden'],
   medium: ['kitchen', 'office', 'bedroom', 'sunroom', 'archives', 'laboratory', 'musicRoom', 'studio', 'cafe'],
@@ -66,16 +89,23 @@ const ROOM_TYPES = {
 };
 
 export const OBJECT_TYPES = {
-  chair: { icon: '♨', occupiable: true },
-  bed: { icon: '▰', occupiable: true },
-  carpet: { icon: '▧', occupiable: true },
-  puddle: { icon: '≈', occupiable: true },
-  table: { icon: '▣', occupiable: false },
-  shelf: { icon: '▤', occupiable: false },
-  plant: { icon: '♣', occupiable: false },
-  counter: { icon: '▬', occupiable: false },
-  statue: { icon: '♟', occupiable: false },
-  tv: { icon: '▣', occupiable: false },
+  chair: { icon: '♨', occupiable: true, footprints: [[[0, 0]]] },
+  bed: { icon: '▰', occupiable: true, footprints: [[[0, 0], [0, 1]]] },
+  carpet: {
+    icon: '▧',
+    occupiable: true,
+    footprints: [
+      [[0, 0], [0, 1], [1, 0], [1, 1]],
+      [[0, 0], [0, 1], [0, 2], [1, 0], [1, 1], [1, 2]],
+    ],
+  },
+  puddle: { icon: '≈', occupiable: true, footprints: [[[0, 0]], [[0, 0], [0, 1]]] },
+  table: { icon: '▣', occupiable: false, footprints: [[[0, 0], [0, 1]]] },
+  shelf: { icon: '▤', occupiable: false, footprints: [[[0, 0], [0, 1]]] },
+  plant: { icon: '♣', occupiable: false, footprints: [[[0, 0]]] },
+  counter: { icon: '▬', occupiable: false, footprints: [[[0, 0], [0, 1]]] },
+  statue: { icon: '♟', occupiable: false, footprints: [[[0, 0]]] },
+  tv: { icon: '▣', occupiable: false, footprints: [[[0, 0]]] },
 };
 
 export const OBJECT_PLACEMENT_RULES = {
@@ -207,7 +237,7 @@ export function createRandomSeed(length = RANDOM_SEED_LENGTH) {
     .join('');
 }
 
-function createGenerationKey(seed, rows, cols, density, difficulty, regeneration) {
+function createGenerationKey(seed, rows, cols, density, difficulty, caseType, regeneration) {
   return JSON.stringify([
     GENERATOR_VERSION,
     seed,
@@ -215,6 +245,7 @@ function createGenerationKey(seed, rows, cols, density, difficulty, regeneration
     cols,
     density,
     difficulty,
+    caseType,
     regeneration,
   ]);
 }
@@ -381,6 +412,8 @@ function placeObjects(rows, cols, rooms, config, rng) {
         col,
         roomId: room.id,
         object: null,
+        objectId: null,
+        objectAnchor: false,
         occupiable: true,
       });
     }
@@ -396,6 +429,7 @@ function placeObjects(rows, cols, rooms, config, rng) {
   const roomBlockedCount = new Map(rooms.map((room) => [room.id, 0]));
   const roomTypeCount = new Map();
   const globalTypeCount = new Map(Object.keys(OBJECT_TYPES).map((type) => [type, 0]));
+  const objects = [];
   let placed = 0;
 
   function isOnWall(cell, room) {
@@ -405,23 +439,58 @@ function placeObjects(rows, cols, rooms, config, rng) {
       || cell.col === room.left + room.width - 1;
   }
 
-  function roomCanReceive(room, type) {
+  function rotateOffset([row, col], orientation) {
+    if (orientation === 'east') return [col, -row];
+    if (orientation === 'south') return [-row, -col];
+    if (orientation === 'west') return [-col, row];
+    return [row, col];
+  }
+
+  function candidatePlacements(room, type, zone = OBJECT_PLACEMENT_RULES[type].zone) {
     const rule = OBJECT_PLACEMENT_RULES[type];
-    if (!rule.roomTypes.includes(room.type)) return false;
+    if (!rule.roomTypes.includes(room.type)) return [];
     const countKey = `${room.id}:${type}`;
-    if ((roomTypeCount.get(countKey) ?? 0) >= rule.maxPerRoom) return false;
+    if ((roomTypeCount.get(countKey) ?? 0) >= rule.maxPerRoom) return [];
 
     const area = room.height * room.width;
-    const objectLimit = Math.max(1, Math.floor(area * 0.55));
-    if (roomObjectCount.get(room.id) >= objectLimit) return false;
+    const objectLimit = Math.max(1, Math.floor(area * 0.32));
+    if (roomObjectCount.get(room.id) >= objectLimit) return [];
     if (!OBJECT_TYPES[type].occupiable) {
       const blockedLimit = Math.min(area - 3, Math.max(1, Math.floor(area * 0.28)));
-      if (roomBlockedCount.get(room.id) >= blockedLimit) return false;
+      if (roomBlockedCount.get(room.id) >= blockedLimit) return [];
     }
 
-    const freeCells = cellsByRoom.get(room.id).filter((cell) => !cell.object);
-    if (rule.zone === 'wall') return freeCells.some((cell) => isOnWall(cell, room));
-    return freeCells.length > 0;
+    const byKey = new Map(cellsByRoom.get(room.id).map((cell) => [cell.key, cell]));
+    const orientations = ['north', 'east', 'south', 'west'];
+    const candidates = [];
+    for (const anchor of cellsByRoom.get(room.id)) {
+      if (anchor.object) continue;
+      if (zone === 'wall' && !isOnWall(anchor, room)) continue;
+      for (const footprint of OBJECT_TYPES[type].footprints) {
+        for (const orientation of orientations) {
+          const footprintCells = footprint
+            .map((offset) => rotateOffset(offset, orientation))
+            .map(([rowOffset, colOffset]) => byKey.get(cellKey(
+              anchor.row + rowOffset,
+              anchor.col + colOffset,
+            )));
+          if (footprintCells.some((cell) => !cell || cell.object)) continue;
+          if (zone === 'center' && footprintCells.some((cell) => isOnWall(cell, room))) continue;
+          if (!OBJECT_TYPES[type].occupiable) {
+            const blockedLimit = Math.min(area - 3, Math.max(1, Math.floor(area * 0.28)));
+            if (roomBlockedCount.get(room.id) + footprintCells.length > blockedLimit) continue;
+          }
+          candidates.push({ anchor, footprintCells, orientation });
+        }
+      }
+    }
+    return candidates;
+  }
+
+  function roomCanReceive(room, type) {
+    const rule = OBJECT_PLACEMENT_RULES[type];
+    return candidatePlacements(room, type).length > 0
+      || (rule.zone === 'center' && candidatePlacements(room, type, 'any').length > 0);
   }
 
   function placeObject(type, requiredRoom = null) {
@@ -436,23 +505,40 @@ function placeObjects(rows, cols, rooms, config, rng) {
     const room = candidateRooms[0]?.room;
     if (!room) return false;
 
-    const freeCells = cellsByRoom.get(room.id).filter((cell) => !cell.object);
-    const preferredCells = rule.zone === 'wall'
-      ? freeCells.filter((cell) => isOnWall(cell, room))
-      : rule.zone === 'center'
-        ? freeCells.filter((cell) => !isOnWall(cell, room))
-        : freeCells;
-    const cell = sample(rng, preferredCells.length ? preferredCells : freeCells);
-    if (!cell) return false;
+    let candidates = candidatePlacements(room, type);
+    if (!candidates.length && rule.zone === 'center') {
+      candidates = candidatePlacements(room, type, 'any');
+    }
+    const candidate = sample(rng, candidates);
+    if (!candidate) return false;
 
-    cell.object = type;
-    cell.occupiable = OBJECT_TYPES[type].occupiable;
+    const object = {
+      id: `object-${objects.length}`,
+      type,
+      anchor: { row: candidate.anchor.row, col: candidate.anchor.col },
+      footprint: candidate.footprintCells.map((cell) => cell.key),
+      occupiableMask: OBJECT_TYPES[type].occupiable
+        ? candidate.footprintCells.map((cell) => cell.key)
+        : [],
+      orientation: candidate.orientation,
+      roomId: room.id,
+    };
+    objects.push(object);
+    for (const cell of candidate.footprintCells) {
+      cell.object = type;
+      cell.objectId = object.id;
+      cell.objectAnchor = cell.key === candidate.anchor.key;
+      cell.occupiable = object.occupiableMask.includes(cell.key);
+    }
     roomObjectCount.set(room.id, roomObjectCount.get(room.id) + 1);
     const countKey = `${room.id}:${type}`;
     roomTypeCount.set(countKey, (roomTypeCount.get(countKey) ?? 0) + 1);
     globalTypeCount.set(type, globalTypeCount.get(type) + 1);
-    if (!cell.occupiable) {
-      roomBlockedCount.set(room.id, roomBlockedCount.get(room.id) + 1);
+    if (!OBJECT_TYPES[type].occupiable) {
+      roomBlockedCount.set(
+        room.id,
+        roomBlockedCount.get(room.id) + candidate.footprintCells.length,
+      );
     }
     placed += 1;
     return true;
@@ -477,6 +563,10 @@ function placeObjects(rows, cols, rooms, config, rng) {
     ),
   );
   const activeBlockingTypes = blockingTypes.slice(0, activeBlockingTypeCount);
+
+  for (const featuredType of ['carpet', 'bed']) {
+    if (placed < targetObjects) placeObject(featuredType);
+  }
 
   for (let index = 0; index < targetBlockingObjects; index += 1) {
     const preferredTypes = shuffle(rng, activeBlockingTypes)
@@ -505,7 +595,7 @@ function placeObjects(rows, cols, rooms, config, rng) {
     plausibleTypes.some((type) => placeObject(type, room));
   }
 
-  return cells;
+  return { cells, objects };
 }
 
 function getNeighbors(puzzleLike, cell, sameRoomOnly = true) {
@@ -628,12 +718,124 @@ function generateSolution(rows, cols, rooms, cells, characters, victimId, rng) {
   throw new Error('Unable to produce a valid placement for these dimensions.');
 }
 
+function generateGenericSolution(rows, cols, cells, characters, rng) {
+  const count = characters.length;
+  for (let attempt = 0; attempt < 300; attempt += 1) {
+    const selected = chooseRowsAndCols(rows, cols, count, [], [], rng);
+    const matching = findMatchingCells(selected.rows, selected.cols, cells, null, new Set(), rng);
+    if (!matching) continue;
+    const matchedCells = shuffle(rng, [...matching.entries()].map(([row, col]) => cellKey(row, col)));
+    const solution = {};
+    shuffle(rng, characters).forEach((character, index) => {
+      solution[character.id] = matchedCells[index];
+    });
+    return solution;
+  }
+  throw new Error('Unable to produce a generic placement for these dimensions.');
+}
+
+function selectCaseType(requestedCaseType, rng) {
+  if (CASE_TYPES[requestedCaseType]) return requestedCaseType;
+  const roll = rng();
+  let threshold = 0;
+  for (const [caseType, profile] of Object.entries(CASE_TYPES)) {
+    threshold += profile.weight;
+    if (roll < threshold) return caseType;
+  }
+  return 'restrictedAccess';
+}
+
+function deriveCaseDisposition(caseType, rows, cols, rooms, cells, characters, victimId, rng) {
+  if (caseType === 'coPresence') {
+    const disposition = generateSolution(rows, cols, rooms, cells, characters, victimId, rng);
+    return {
+      ...disposition,
+      caseRule: { type: 'coPresence' },
+      solution: disposition.solution,
+    };
+  }
+
+  const solution = generateGenericSolution(rows, cols, cells, characters, rng);
+  const cellByKey = new Map(cells.map((cell) => [cell.key, cell]));
+  const suspects = characters.filter((character) => character.id !== victimId);
+
+  if (caseType === 'evidenceTrail') {
+    const objectTypes = shuffle(rng, [...new Set(cells.filter((cell) => cell.object).map((cell) => cell.object))]);
+    const rules = [];
+    for (const objectType of objectTypes) {
+      for (const distance of shuffle(rng, [0, 1, 2, 3])) {
+        const matching = suspects.filter((character) => (
+          distanceFromObject({ cells }, cellByKey.get(solution[character.id]), objectType) === distance
+        ));
+        if (matching.length === 1) {
+          rules.push({ objectType, distance, killerId: matching[0].id });
+        }
+      }
+    }
+    const selected = sample(rng, rules);
+    if (!selected) throw new Error('Unable to derive a unique material-evidence rule.');
+    return {
+      solution,
+      killerId: selected.killerId,
+      murderRoomId: null,
+      caseRule: {
+        type: 'evidenceTrail',
+        objectType: selected.objectType,
+        distance: selected.distance,
+        victimCellKey: solution[victimId],
+      },
+    };
+  }
+
+  const victimCell = cellByKey.get(solution[victimId]);
+  const victimRoom = rooms.find((room) => room.id === victimCell.roomId);
+  const accessRules = shuffle(rng, victimRoom.neighborIds)
+    .map((accessRoomId) => ({
+      accessRoomId,
+      occupants: suspects.filter((character) => (
+        cellByKey.get(solution[character.id]).roomId === accessRoomId
+      )),
+    }))
+    .filter(({ occupants }) => occupants.length === 1);
+  const selected = accessRules[0];
+  if (!selected) throw new Error('Unable to derive a unique restricted-access rule.');
+  return {
+    solution,
+    killerId: selected.occupants[0].id,
+    murderRoomId: null,
+    caseRule: {
+      type: 'restrictedAccess',
+      accessRoomId: selected.accessRoomId,
+      victimCellKey: solution[victimId],
+    },
+  };
+}
+
 function clueId(characterId, type, suffix = '') {
   return `${characterId}:${type}:${suffix}`;
 }
 
 function isBesideObject(puzzle, cell, objectType) {
   return getNeighbors(puzzle, cell, true).some((neighbor) => neighbor.object === objectType);
+}
+
+function distanceFromObject(puzzle, cell, objectType) {
+  const matchingCells = puzzle.cells.filter((candidate) => candidate.object === objectType);
+  return Math.min(
+    Infinity,
+    ...matchingCells.map((candidate) => (
+      Math.abs(candidate.row - cell.row) + Math.abs(candidate.col - cell.col)
+    )),
+  );
+}
+
+function roomPosition(puzzle, cell) {
+  const room = puzzle.rooms.find((candidate) => candidate.id === cell.roomId);
+  const onHorizontalEdge = cell.row === room.top || cell.row === room.top + room.height - 1;
+  const onVerticalEdge = cell.col === room.left || cell.col === room.left + room.width - 1;
+  if (onHorizontalEdge && onVerticalEdge) return 'corner';
+  if (onHorizontalEdge || onVerticalEdge) return 'edge';
+  return 'center';
 }
 
 function isBesideCell(puzzle, first, second) {
@@ -643,7 +845,7 @@ function isBesideCell(puzzle, first, second) {
 
 function makeUnaryClue(characterId, type, value, description, strength = 1, category = 'direct') {
   return {
-    id: clueId(characterId, type, String(value)),
+    id: clueId(characterId, type, typeof value === 'object' ? JSON.stringify(value) : String(value)),
     characterId,
     type,
     value,
@@ -680,6 +882,25 @@ export function describeClue(puzzle, clue, locale = puzzle.locale) {
   switch (clue.type) {
     case 'victimWithKiller':
       return translate(locale, 'clues.victimWithKiller');
+    case 'evidenceTrail':
+      return translate(locale, `clues.evidenceTrail${puzzle.caseRule.distance === 1 ? 'One' : 'Many'}`, {
+        distance: puzzle.caseRule.distance,
+        object: getObjectCopy(locale, puzzle.caseRule.objectType).afterOf,
+        cell: puzzle.caseRule.victimCellKey
+          .split(',')
+          .map((part) => Number(part) + 1)
+          .join('.'),
+      });
+    case 'restrictedAccess': {
+      const room = puzzle.rooms.find((item) => item.id === puzzle.caseRule.accessRoomId);
+      return translate(locale, 'clues.restrictedAccess', {
+        room: room?.name ?? '',
+        cell: puzzle.caseRule.victimCellKey
+          .split(',')
+          .map((part) => Number(part) + 1)
+          .join('.'),
+      });
+    }
     case 'room': {
       const room = puzzle.rooms.find((item) => item.id === clue.value);
       return translate(locale, 'clues.room', { ...parameters, room: room?.name ?? '' });
@@ -707,6 +928,14 @@ export function describeClue(puzzle, clue, locale = puzzle.locale) {
         ...parameters,
         object: getObjectCopy(locale, clue.value).label,
       });
+    case 'distanceFromObject':
+      return translate(locale, `clues.distanceFromObject${clue.value.distance === 1 ? 'One' : 'Many'}`, {
+        ...parameters,
+        distance: clue.value.distance,
+        object: getObjectCopy(locale, clue.value.objectType).afterOf,
+      });
+    case 'roomPosition':
+      return translate(locale, `clues.roomPosition${clue.value[0].toUpperCase()}${clue.value.slice(1)}`, parameters);
     case 'aloneInRoom':
       return translate(locale, `clues.aloneInRoom${character?.gender === 'f' ? 'F' : 'M'}`);
     case 'sameRoom':
@@ -751,8 +980,8 @@ function generateCluePool(puzzle, rng) {
     if (character.isVictim) {
       pool.push(makeUnaryClue(
         character.id,
-        'victimWithKiller',
-        true,
+        CASE_TYPES[puzzle.caseType].narrativeClue,
+        puzzle.caseRule,
         '',
         0,
         'narrative',
@@ -793,6 +1022,30 @@ function generateCluePool(puzzle, rng) {
         0.95,
         'object',
       ));
+    }
+
+    const position = roomPosition(puzzle, cell);
+    pool.push(makeUnaryClue(
+      character.id,
+      'roomPosition',
+      position,
+      '',
+      position === 'center' ? 0.48 : 0.35,
+      'broad',
+    ));
+
+    for (const objectType of blockingObjectTypesPresent) {
+      const distance = distanceFromObject(puzzle, cell, objectType);
+      if (distance >= 1 && distance <= 3) {
+        pool.push(makeUnaryClue(
+          character.id,
+          'distanceFromObject',
+          { objectType, distance },
+          '',
+          0.62,
+          'object',
+        ));
+      }
     }
 
     for (const objectType of blockingObjectTypesPresent) {
@@ -849,7 +1102,7 @@ function generateCluePool(puzzle, rng) {
           'negative',
         ));
       }
-      if (cell.row < otherCell.row) {
+      if (character.id < other.id && cell.row < otherCell.row) {
         pool.push(makeRelationClue(
           character.id,
           'northOf',
@@ -857,7 +1110,7 @@ function generateCluePool(puzzle, rng) {
           '',
           0.3,
         ));
-      } else if (cell.row > otherCell.row) {
+      } else if (character.id < other.id && cell.row > otherCell.row) {
         pool.push(makeRelationClue(
           character.id,
           'southOf',
@@ -866,7 +1119,7 @@ function generateCluePool(puzzle, rng) {
           0.3,
         ));
       }
-      if (cell.col < otherCell.col) {
+      if (character.id < other.id && cell.col < otherCell.col) {
         pool.push(makeRelationClue(
           character.id,
           'westOf',
@@ -874,7 +1127,7 @@ function generateCluePool(puzzle, rng) {
           '',
           0.3,
         ));
-      } else if (cell.col > otherCell.col) {
+      } else if (character.id < other.id && cell.col > otherCell.col) {
         pool.push(makeRelationClue(
           character.id,
           'eastOf',
@@ -901,39 +1154,52 @@ function generateCluePool(puzzle, rng) {
   return clues;
 }
 
+const CONSTRAINT_EVALUATORS = {
+  room: ({ clue, cell }) => cell.roomId === clue.value,
+  row: ({ clue, cell }) => cell.row === clue.value,
+  col: ({ clue, cell }) => cell.col === clue.value,
+  rowHalf: ({ puzzle, clue, cell }) => (
+    clue.value === 'top' ? cell.row < puzzle.rows / 2 : cell.row >= puzzle.rows / 2
+  ),
+  colHalf: ({ puzzle, clue, cell }) => (
+    clue.value === 'left' ? cell.col < puzzle.cols / 2 : cell.col >= puzzle.cols / 2
+  ),
+  onObject: ({ clue, cell }) => cell.object === clue.value,
+  besideObject: ({ puzzle, clue, cell }) => isBesideObject(puzzle, cell, clue.value),
+  notBesideObject: ({ puzzle, clue, cell }) => !isBesideObject(puzzle, cell, clue.value),
+  distanceFromObject: ({ puzzle, clue, cell }) => (
+    distanceFromObject(puzzle, cell, clue.value.objectType) === clue.value.distance
+  ),
+  roomPosition: ({ puzzle, clue, cell }) => roomPosition(puzzle, cell) === clue.value,
+  sameRoom: ({ cell, otherCell }) => cell.roomId === otherCell.roomId,
+  notSameRoom: ({ cell, otherCell }) => cell.roomId !== otherCell.roomId,
+  northOf: ({ cell, otherCell }) => cell.row < otherCell.row,
+  southOf: ({ cell, otherCell }) => cell.row > otherCell.row,
+  westOf: ({ cell, otherCell }) => cell.col < otherCell.col,
+  eastOf: ({ cell, otherCell }) => cell.col > otherCell.col,
+  besidePerson: ({ puzzle, cell, otherCell }) => isBesideCell(puzzle, cell, otherCell),
+};
+
+export function evaluateConstraint(puzzle, clue, placement, cell) {
+  const evaluate = CONSTRAINT_EVALUATORS[clue.type];
+  if (!evaluate) return true;
+  const otherKey = clue.otherId ? placement[clue.otherId] : null;
+  if (clue.otherId && !otherKey) return true;
+  return evaluate({
+    puzzle,
+    clue,
+    placement,
+    cell,
+    otherCell: otherKey ? puzzle.cellByKey.get(otherKey) : null,
+  });
+}
+
 function unaryClueMatches(puzzle, clue, cell) {
-  switch (clue.type) {
-    case 'victimWithKiller': return true;
-    case 'room': return cell.roomId === clue.value;
-    case 'row': return cell.row === clue.value;
-    case 'col': return cell.col === clue.value;
-    case 'rowHalf': return clue.value === 'top' ? cell.row < puzzle.rows / 2 : cell.row >= puzzle.rows / 2;
-    case 'colHalf': return clue.value === 'left' ? cell.col < puzzle.cols / 2 : cell.col >= puzzle.cols / 2;
-    case 'onObject': return cell.object === clue.value;
-    case 'besideObject': return isBesideObject(puzzle, cell, clue.value);
-    case 'notBesideObject': return !isBesideObject(puzzle, cell, clue.value);
-    default: return true;
-  }
+  return evaluateConstraint(puzzle, clue, {}, cell);
 }
 
 function partialClueMatches(puzzle, clue, placement, cell) {
-  if (!['sameRoom', 'notSameRoom', 'northOf', 'southOf', 'westOf', 'eastOf', 'besidePerson'].includes(clue.type)) {
-    return unaryClueMatches(puzzle, clue, cell);
-  }
-
-  const otherKey = placement[clue.otherId];
-  if (!otherKey) return true;
-  const otherCell = puzzle.cellByKey.get(otherKey);
-  switch (clue.type) {
-    case 'sameRoom': return cell.roomId === otherCell.roomId;
-    case 'notSameRoom': return cell.roomId !== otherCell.roomId;
-    case 'northOf': return cell.row < otherCell.row;
-    case 'southOf': return cell.row > otherCell.row;
-    case 'westOf': return cell.col < otherCell.col;
-    case 'eastOf': return cell.col > otherCell.col;
-    case 'besidePerson': return isBesideCell(puzzle, cell, otherCell);
-    default: return true;
-  }
+  return evaluateConstraint(puzzle, clue, placement, cell);
 }
 
 function fullClueMatches(puzzle, clue, placement) {
@@ -947,18 +1213,52 @@ function fullClueMatches(puzzle, clue, placement) {
   return partialClueMatches(puzzle, clue, placement, cell);
 }
 
-function victimRoomRuleMatches(puzzle, placement) {
-  const victimKey = placement[puzzle.victimId];
-  if (!victimKey) return true;
-  const victimRoom = puzzle.cellByKey.get(victimKey).roomId;
+function caseRuleMatches(puzzle, placement) {
   const complete = Object.keys(placement).length === puzzle.characters.length;
-  const sameRoomCount = Object.values(placement)
-    .map((key) => puzzle.cellByKey.get(key))
-    .filter((cell) => cell.roomId === victimRoom)
+  const rule = puzzle.caseRule ?? { type: 'coPresence' };
+
+  if (rule.type === 'coPresence') {
+    const victimKey = placement[puzzle.victimId];
+    if (!victimKey) return true;
+    const victimRoom = puzzle.cellByKey.get(victimKey).roomId;
+    const sameRoomCount = Object.values(placement)
+      .map((key) => puzzle.cellByKey.get(key))
+      .filter((cell) => cell.roomId === victimRoom)
+      .length;
+    if (sameRoomCount > 2) return false;
+    return !complete || sameRoomCount === 2;
+  }
+
+  if (rule.type === 'evidenceTrail') {
+    if (placement[puzzle.victimId] && placement[puzzle.victimId] !== rule.victimCellKey) return false;
+    const matchingCount = puzzle.characters
+      .filter((character) => !character.isVictim && placement[character.id])
+      .filter((character) => (
+        distanceFromObject(
+          puzzle,
+          puzzle.cellByKey.get(placement[character.id]),
+          rule.objectType,
+        ) === rule.distance
+      ))
+      .length;
+    return matchingCount <= 1 && (!complete || matchingCount === 1);
+  }
+
+  const victimKey = placement[puzzle.victimId];
+  if (victimKey) {
+    if (victimKey !== rule.victimCellKey) return false;
+    const victimRoom = puzzle.rooms.find((room) => (
+      room.id === puzzle.cellByKey.get(victimKey).roomId
+    ));
+    if (!victimRoom.neighborIds.includes(rule.accessRoomId)) return false;
+  }
+  const matchingCount = puzzle.characters
+    .filter((character) => !character.isVictim && placement[character.id])
+    .filter((character) => (
+      puzzle.cellByKey.get(placement[character.id]).roomId === rule.accessRoomId
+    ))
     .length;
-  if (sameRoomCount > 2) return false;
-  if (complete) return sameRoomCount === 2;
-  return true;
+  return matchingCount <= 1 && (!complete || matchingCount === 1);
 }
 
 function relationForwardCheck(puzzle, clue, placement, domains) {
@@ -1023,7 +1323,7 @@ export function solvePuzzle(puzzle, options = {}) {
     stats.maxDepth = Math.max(stats.maxDepth, depth);
 
     if (depth === puzzle.characters.length) {
-      if (!victimRoomRuleMatches(puzzle, placement)) {
+      if (!caseRuleMatches(puzzle, placement)) {
         stats.backtracks += 1;
         return;
       }
@@ -1053,7 +1353,7 @@ export function solvePuzzle(puzzle, options = {}) {
       usedCells.add(cell.key);
 
       const domains = new Map();
-      let feasible = victimRoomRuleMatches(puzzle, placement);
+      let feasible = caseRuleMatches(puzzle, placement);
       if (feasible) {
         for (const character of puzzle.characters) {
           if (!placement[character.id]) {
@@ -1115,11 +1415,17 @@ function selectClues(puzzle, cluePool, difficulty, rng) {
   const selectedIds = new Set();
   const perCharacter = new Map(puzzle.characters.map((character) => [character.id, 0]));
   const exactPerCharacter = new Map(puzzle.characters.map((character) => [character.id, 0]));
+  const cardinalPerCharacter = new Map(puzzle.characters.map((character) => [character.id, 0]));
   const occupiable = puzzle.cells.filter((cell) => cell.occupiable);
   let exactClueCount = 0;
+  let cardinalClueCount = 0;
 
   function canAdd(clue) {
     if (!clue || selectedIds.has(clue.id)) return false;
+    if (CARDINAL_CLUE_TYPES.has(clue.type)) {
+      if (cardinalPerCharacter.get(clue.characterId) >= 1) return false;
+      if (cardinalClueCount + 1 > Math.floor((selected.length + 1) * 0.2)) return false;
+    }
     return clue.category !== 'exact'
       || (exactPerCharacter.get(clue.characterId) < 1 && exactClueCount < config.maxExactClues);
   }
@@ -1132,6 +1438,10 @@ function selectClues(puzzle, cluePool, difficulty, rng) {
     if (clue.category === 'exact') {
       exactPerCharacter.set(clue.characterId, exactPerCharacter.get(clue.characterId) + 1);
       exactClueCount += 1;
+    }
+    if (CARDINAL_CLUE_TYPES.has(clue.type)) {
+      cardinalPerCharacter.set(clue.characterId, cardinalPerCharacter.get(clue.characterId) + 1);
+      cardinalClueCount += 1;
     }
     return true;
   }
@@ -1252,6 +1562,8 @@ function selectClues(puzzle, cluePool, difficulty, rng) {
       if (checks >= 14 || perCharacter.get(clue.characterId) <= 1) continue;
       checks += 1;
       const trial = selected.filter((item) => item.id !== clue.id);
+      const trialCardinalCount = trial.filter((item) => CARDINAL_CLUE_TYPES.has(item.type)).length;
+      if (trialCardinalCount > Math.floor(trial.length * 0.2)) continue;
       const check = solvePuzzle(puzzle, { clues: trial, maxSolutions: 2, maxNodes: 90000 });
       if (!check.aborted && check.count === 1) {
         const index = selected.findIndex((item) => item.id === clue.id);
@@ -1261,6 +1573,10 @@ function selectClues(puzzle, cluePool, difficulty, rng) {
         if (clue.category === 'exact') {
           exactPerCharacter.set(clue.characterId, exactPerCharacter.get(clue.characterId) - 1);
           exactClueCount -= 1;
+        }
+        if (CARDINAL_CLUE_TYPES.has(clue.type)) {
+          cardinalPerCharacter.set(clue.characterId, cardinalPerCharacter.get(clue.characterId) - 1);
+          cardinalClueCount -= 1;
         }
       }
     }
@@ -1327,16 +1643,30 @@ export function localizePuzzle(puzzle, locale = puzzle.locale) {
 export function generatePuzzle(options = {}) {
   const rows = clamp(Number(options.rows ?? 9), 4, 12);
   const cols = clamp(Number(options.cols ?? 9), 4, 12);
-  const density = Number(clamp(Number(options.density ?? 1), 0.55, 1).toFixed(4));
   const difficulty = DIFFICULTIES[options.difficulty] ? options.difficulty : 'moyen';
+  const density = Number(clamp(
+    Number(options.density ?? DIFFICULTIES[difficulty].defaultDensity),
+    0.55,
+    1,
+  ).toFixed(4));
+  const requestedCaseType = CASE_TYPES[options.caseType] ? options.caseType : 'mixed';
   const seed = String(options.seed ?? '').trim() || createRandomSeed();
   const locale = normalizeLocale(options.locale);
   const config = DIFFICULTIES[difficulty];
   const regenerationLimit = difficulty === 'expert' ? 200 : 50;
 
   for (let regeneration = 0; regeneration < regenerationLimit; regeneration += 1) {
-    const generationKey = createGenerationKey(seed, rows, cols, density, difficulty, regeneration);
+    const generationKey = createGenerationKey(
+      seed,
+      rows,
+      cols,
+      density,
+      difficulty,
+      requestedCaseType,
+      regeneration,
+    );
     const rng = createRng(generationKey);
+    const caseType = selectCaseType(requestedCaseType, rng);
     const characterCount = selectCharacterCount(rows, cols, density);
     const roomTarget = clamp(
       Math.round(Math.sqrt(rows * cols) * config.roomFactor),
@@ -1344,12 +1674,21 @@ export function generatePuzzle(options = {}) {
       Math.min(9, Math.floor(rows * cols / 6)),
     );
     const rooms = buildRooms(rows, cols, roomTarget, rng, locale);
-    const cells = placeObjects(rows, cols, rooms, config, rng);
+    const { cells, objects } = placeObjects(rows, cols, rooms, config, rng);
     const characters = createCharacters(characterCount, rng, locale);
     const victim = characters.at(-1);
 
     try {
-      const disposition = generateSolution(rows, cols, rooms, cells, characters, victim.id, rng);
+      const disposition = deriveCaseDisposition(
+        caseType,
+        rows,
+        cols,
+        rooms,
+        cells,
+        characters,
+        victim.id,
+        rng,
+      );
       const titleIndex = createCaseTitleIndex(rng);
       const puzzle = {
         version: GENERATOR_VERSION,
@@ -1364,8 +1703,12 @@ export function generatePuzzle(options = {}) {
         cols,
         density,
         difficulty,
+        requestedCaseType,
+        caseType,
+        caseRule: disposition.caseRule,
         rooms,
         cells,
+        objects,
         characters,
         victimId: victim.id,
         killerId: disposition.killerId,
@@ -1406,8 +1749,28 @@ function getVictimCompanions(puzzle, placement) {
 }
 
 export function getKillerFromPlacement(puzzle, placement) {
-  const companions = getVictimCompanions(puzzle, placement);
-  return companions.length === 1 ? companions[0].id : null;
+  const rule = puzzle.caseRule ?? { type: 'coPresence' };
+  let candidates;
+  if (rule.type === 'coPresence') {
+    candidates = getVictimCompanions(puzzle, placement);
+  } else if (rule.type === 'evidenceTrail') {
+    candidates = puzzle.characters.filter((character) => (
+      !character.isVictim
+      && placement[character.id]
+      && distanceFromObject(
+        puzzle,
+        puzzle.cellByKey.get(placement[character.id]),
+        rule.objectType,
+      ) === rule.distance
+    ));
+  } else {
+    candidates = puzzle.characters.filter((character) => (
+      !character.isVictim
+      && placement[character.id]
+      && puzzle.cellByKey.get(placement[character.id]).roomId === rule.accessRoomId
+    ));
+  }
+  return candidates.length === 1 ? candidates[0].id : null;
 }
 
 export function validatePlayerState(puzzle, placement) {
@@ -1421,8 +1784,9 @@ export function validatePlayerState(puzzle, placement) {
   }
   const complete = puzzle.characters.every((character) => Boolean(placement[character.id]));
   const victimCompanionCount = getVictimCompanions(puzzle, placement).length;
-  const victimRoomValid = !complete || victimCompanionCount === 1;
-  const inferredKillerId = complete && victimRoomValid
+  const victimRoomValid = puzzle.caseType !== 'coPresence' || !complete || victimCompanionCount === 1;
+  const caseRuleValid = !complete || caseRuleMatches(puzzle, placement);
+  const inferredKillerId = complete && caseRuleValid
     ? getKillerFromPlacement(puzzle, placement)
     : null;
   const killerCorrect = inferredKillerId === puzzle.killerId;
@@ -1433,9 +1797,10 @@ export function validatePlayerState(puzzle, placement) {
     complete,
     victimCompanionCount,
     victimRoomValid,
+    caseRuleValid,
     inferredKillerId,
     killerCorrect,
-    solved: complete && victimRoomValid && correctCount === puzzle.characters.length && killerCorrect,
+    solved: complete && caseRuleValid && correctCount === puzzle.characters.length && killerCorrect,
   };
 }
 

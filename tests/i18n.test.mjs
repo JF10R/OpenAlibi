@@ -58,6 +58,7 @@ const options = {
   cols: 6,
   density: 1,
   difficulty: 'moyen',
+  caseType: 'coPresence',
   seed: 'I18N-SEMANTICS',
 };
 const puzzles = Object.fromEntries(
