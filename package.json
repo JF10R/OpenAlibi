@@ -6,6 +6,6 @@
   "type": "module",
   "scripts": {
     "start": "python3 -m http.server 8080",
-    "test": "node tests/generator.test.mjs && node tests/progress.test.mjs && node tests/challenge.test.mjs && node tests/features.test.mjs && node tests/i18n.test.mjs && node tests/ui.test.mjs"
+    "test": "node tests/generator.test.mjs && node tests/progress.test.mjs && node tests/challenge.test.mjs && node tests/accessibility.test.mjs && node tests/features.test.mjs && node tests/i18n.test.mjs && node tests/ui.test.mjs"
   }
 }

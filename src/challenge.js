@@ -6,6 +6,19 @@ function boundedInteger(value, minimum, maximum) {
   return Number.isInteger(number) && number >= minimum && number <= maximum ? number : null;
 }
 
+export function normalizeGenerationOptions(value) {
+  const rows = boundedInteger(value?.rows, 4, 12);
+  const cols = boundedInteger(value?.cols, 4, 12);
+  const density = Number(value?.density);
+  const difficulty = value?.difficulty;
+  const caseType = value?.caseType;
+  const seed = typeof value?.seed === 'string' ? value.seed.trim() : '';
+  if (!rows || !cols || !Number.isFinite(density) || density < 0.55 || density > 1) return null;
+  if (!DIFFICULTIES.has(difficulty) || !CASE_TYPES.has(caseType)) return null;
+  if (!seed || seed.length > 30) return null;
+  return { rows, cols, density, difficulty, caseType, seed };
+}
+
 export function createChallengeUrl(baseUrl, puzzle) {
   const url = new URL(baseUrl);
   url.search = '';
@@ -31,21 +44,14 @@ export function parseChallengeUrl(value, expectedVersion) {
   if (url.searchParams.get('challenge') !== '1') return null;
   if (boundedInteger(url.searchParams.get('v'), 1, 999) !== expectedVersion) return null;
 
-  const rows = boundedInteger(url.searchParams.get('rows'), 4, 12);
-  const cols = boundedInteger(url.searchParams.get('cols'), 4, 12);
   const densityPercent = boundedInteger(url.searchParams.get('density'), 55, 100);
-  const difficulty = url.searchParams.get('difficulty');
-  const caseType = url.searchParams.get('case');
-  const seed = url.searchParams.get('seed')?.trim() ?? '';
-  if (!rows || !cols || !densityPercent || !DIFFICULTIES.has(difficulty)) return null;
-  if (!CASE_TYPES.has(caseType) || !seed || seed.length > 30) return null;
-
-  return {
-    rows,
-    cols,
+  if (!densityPercent) return null;
+  return normalizeGenerationOptions({
+    rows: url.searchParams.get('rows'),
+    cols: url.searchParams.get('cols'),
     density: densityPercent / 100,
-    difficulty,
-    caseType,
-    seed,
-  };
+    difficulty: url.searchParams.get('difficulty'),
+    caseType: url.searchParams.get('case'),
+    seed: url.searchParams.get('seed'),
+  });
 }

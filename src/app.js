@@ -10,7 +10,17 @@ import {
   serializePuzzle,
   validatePlayerState,
 } from './core.js';
-import { createChallengeUrl, parseChallengeUrl } from './challenge.js';
+import {
+  createChallengeUrl,
+  normalizeGenerationOptions,
+  parseChallengeUrl,
+} from './challenge.js';
+import {
+  COLOR_VISION_STORAGE_KEY,
+  VISUAL_AIDS_STORAGE_KEY,
+  normalizeColorVisionMode,
+  resolveVisualAidsPreference,
+} from './accessibility.js';
 import { APP_FEATURES } from './feature-config.js';
 import { createFeatureHost } from './feature-host.js';
 import {
@@ -55,9 +65,13 @@ const state = {
 };
 
 const dom = {
+  appMenu: document.querySelector('#app-menu'),
+  appHeader: document.querySelector('.app-header'),
   caseSettings: document.querySelector('#case-settings'),
   caseHeader: document.querySelector('.case-header'),
-  boardPanel: document.querySelector('.board-panel'),
+  suspectsPanel: document.querySelector('.suspects-panel'),
+  boardToolbar: document.querySelector('.board-toolbar'),
+  boardScrollHint: document.querySelector('.board-scroll-hint'),
   activeCharacter: document.querySelector('#active-character'),
   placeMode: document.querySelector('#mode-place'),
   markMode: document.querySelector('#mode-mark'),
@@ -77,6 +91,8 @@ const dom = {
   caseType: document.querySelector('#case-type'),
   seed: document.querySelector('#seed'),
   randomizeSeed: document.querySelector('#randomize-seed'),
+  visualAidsEnabled: document.querySelector('#visual-aids-enabled'),
+  colorVisionMode: document.querySelector('#color-vision-mode'),
   generate: document.querySelector('#generate'),
   title: document.querySelector('#case-title'),
   meta: document.querySelector('#case-meta'),
@@ -97,6 +113,9 @@ const dom = {
   exportJson: document.querySelector('#export-json'),
   print: document.querySelector('#print'),
   status: document.querySelector('#status'),
+  planning: document.querySelector('#planning-dialog'),
+  openPlanning: document.querySelector('#open-planning'),
+  closePlanning: document.querySelector('#close-planning'),
   rules: document.querySelector('#rules-dialog'),
   openRules: document.querySelector('#open-rules'),
   closeRules: document.querySelector('#close-rules'),
@@ -109,12 +128,10 @@ const THEME_STORAGE_KEY = 'openalibi-theme';
 const LOCALE_STORAGE_KEY = 'openalibi-locale';
 const CURRENT_DRAFT_STORAGE_KEY = 'openalibi-current-draft';
 const DRAFT_STORAGE_PREFIX = 'openalibi-draft:';
-const MOBILE_LAYOUT_QUERY = [
-  '(max-width: 720px)',
-  '(max-width: 960px) and (max-height: 600px) and (orientation: landscape) and (pointer: coarse)',
-].join(', ');
-const mobileLayout = window.matchMedia(MOBILE_LAYOUT_QUERY);
+const COMPACT_LAYOUT_QUERY = '(max-width: 1120px)';
+const compactLayout = window.matchMedia(COMPACT_LAYOUT_QUERY);
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+const increasedContrast = window.matchMedia('(prefers-contrast: more)');
 const featureHost = createFeatureHost(APP_FEATURES, {
   onError: (error, featureId = 'unknown') => console.error(`Feature ${featureId} failed.`, error),
 });
@@ -157,10 +174,6 @@ function focusBoardCell(key) {
   });
 }
 
-function showBoardOnMobile() {
-  if (mobileLayout.matches) scrollIntoView(dom.boardPanel);
-}
-
 function setInteractionMode(mode, announce = true) {
   const modes = ['place', 'mark', 'candidate', 'tentative'];
   state.interactionMode = modes.includes(mode) ? mode : 'place';
@@ -169,6 +182,7 @@ function setInteractionMode(mode, announce = true) {
   dom.markMode.setAttribute('aria-pressed', String(state.interactionMode === 'mark'));
   dom.candidateMode.setAttribute('aria-pressed', String(state.interactionMode === 'candidate'));
   dom.tentativeMode.setAttribute('aria-pressed', String(state.interactionMode === 'tentative'));
+  dom.openPlanning.setAttribute('aria-pressed', String(state.interactionMode !== 'place'));
   if (announce) {
     setStatus({
       place: 'status.placeMode',
@@ -389,6 +403,45 @@ function applyTheme(theme, persist = true) {
   }
 }
 
+function getInitialAccessibilityPreferences() {
+  let storedVisualAids = null;
+  let storedColorVision = null;
+  try {
+    storedVisualAids = localStorage.getItem(VISUAL_AIDS_STORAGE_KEY);
+    storedColorVision = localStorage.getItem(COLOR_VISION_STORAGE_KEY);
+  } catch {
+    // System preferences remain available when storage is unavailable.
+  }
+  return {
+    visualAids: resolveVisualAidsPreference(storedVisualAids, increasedContrast.matches),
+    colorVision: normalizeColorVisionMode(storedColorVision),
+  };
+}
+
+function applyAccessibilityPreferences(preferences = {}, persist = true) {
+  const visualAids = preferences.visualAids
+    ?? document.documentElement.dataset.visualAids === 'true';
+  const colorVision = normalizeColorVisionMode(
+    preferences.colorVision ?? document.documentElement.dataset.colorVision,
+  );
+  document.documentElement.dataset.visualAids = String(Boolean(visualAids));
+  document.documentElement.dataset.colorVision = colorVision;
+  dom.visualAidsEnabled.checked = Boolean(visualAids);
+  dom.colorVisionMode.value = colorVision;
+  if (persist) {
+    try {
+      localStorage.setItem(VISUAL_AIDS_STORAGE_KEY, String(Boolean(visualAids)));
+      localStorage.setItem(COLOR_VISION_STORAGE_KEY, colorVision);
+    } catch {
+      // Accessibility preferences still apply for the current session.
+    }
+  }
+  publishFeatureEvent('accessibility-changed', {
+    visualAids: Boolean(visualAids),
+    colorVision,
+  });
+}
+
 const ROOM_SYMBOLS = Object.freeze({
   livingRoom: '⌂',
   diningRoom: '◉',
@@ -487,7 +540,7 @@ const OBJECT_SVGS = {
 function objectMarkup(type, object, occupiable) {
   const drawing = OBJECT_SVGS[type] ?? object.icon;
   const copy = getObjectCopy(state.locale, type);
-  return `<span class="object object-${type}${occupiable ? ' occupiable-object' : ''}" title="${escapeHtml(copy.label)}">${drawing}</span>`;
+  return `<span class="object object-${type}${occupiable ? ' occupiable-object' : ''}" title="${escapeHtml(copy.label)}">${drawing}</span><span class="object-label" aria-hidden="true">${escapeHtml(copy.label)}</span>`;
 }
 
 function resolveStatusParameters(parameters) {
@@ -578,7 +631,7 @@ function generate(seed = createRandomSeed(), focusCase = false) {
       persistDraft();
       setStatus(restored ? 'status.draftRestored' : 'status.generated', {}, 'success');
       publishFeatureEvent('case-generated', { restored });
-      if (mobileLayout.matches) dom.caseSettings.open = false;
+      if (compactLayout.matches) dom.caseSettings.open = false;
       if (focusCase) scrollIntoView(dom.caseHeader);
     } catch (error) {
       console.error(error);
@@ -689,6 +742,11 @@ function renderActiveCharacter() {
 
 function renderSuspects() {
   const puzzle = state.puzzle;
+  const previousScrollLeft = dom.suspects.scrollLeft;
+  const focusedCharacterId = document.activeElement instanceof HTMLElement
+    && dom.suspects.contains(document.activeElement)
+    ? document.activeElement.dataset.characterId
+    : null;
   dom.suspects.innerHTML = '';
   for (const character of puzzle.characters) {
     const card = document.createElement('button');
@@ -733,9 +791,14 @@ function renderSuspects() {
       persistDraft();
       renderSuspects();
       renderBoard();
-      showBoardOnMobile();
     });
     dom.suspects.appendChild(card);
+  }
+  dom.suspects.scrollLeft = previousScrollLeft;
+  if (focusedCharacterId) {
+    const focusedCard = [...dom.suspects.children]
+      .find((card) => card.dataset.characterId === focusedCharacterId);
+    focusedCard?.focus({ preventScroll: true });
   }
   renderActiveCharacter();
 }
@@ -772,7 +835,16 @@ function isAutomaticallyExcluded(cell) {
 function fitBoardToViewport() {
   if (!state.puzzle || state.boardViewMode === 'zoom') return false;
   const width = Math.max(1, dom.boardScroll.clientWidth - 14);
-  const height = Math.max(1, dom.boardScroll.clientHeight - 14);
+  const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+  const compactReservedHeight = [
+    dom.appHeader,
+    dom.suspectsPanel,
+    dom.boardToolbar,
+    dom.boardScrollHint,
+  ].reduce((total, element) => total + (element?.getBoundingClientRect().height ?? 0), 28);
+  const height = Math.max(1, compactLayout.matches
+    ? viewportHeight - compactReservedHeight
+    : dom.boardScroll.clientHeight - 14);
   const cellSize = Math.max(22, Math.min(
     82,
     Math.floor(width / state.puzzle.cols),
@@ -1186,9 +1258,16 @@ dom.difficulty.addEventListener('change', () => {
 });
 dom.language.addEventListener('change', () => applyLocale(dom.language.value));
 dom.placeMode.addEventListener('click', () => setInteractionMode('place'));
-dom.markMode.addEventListener('click', () => setInteractionMode('mark'));
-dom.candidateMode.addEventListener('click', () => setInteractionMode('candidate'));
-dom.tentativeMode.addEventListener('click', () => setInteractionMode('tentative'));
+for (const [control, mode] of [
+  [dom.markMode, 'mark'],
+  [dom.candidateMode, 'candidate'],
+  [dom.tentativeMode, 'tentative'],
+]) {
+  control.addEventListener('click', () => {
+    setInteractionMode(mode);
+    dom.planning.close();
+  });
+}
 dom.theorySlot.addEventListener('change', renderTheoryControls);
 dom.saveTheory.addEventListener('click', saveCurrentTheory);
 dom.loadTheory.addEventListener('click', loadCurrentTheory);
@@ -1214,22 +1293,51 @@ dom.hint.addEventListener('click', giveHint);
 dom.reveal.addEventListener('click', revealSolution);
 dom.shareChallenge.addEventListener('click', copyChallengeLink);
 dom.exportJson.addEventListener('click', exportJson);
-dom.print.addEventListener('click', () => window.print());
-dom.openRules.addEventListener('click', () => dom.rules.showModal());
+dom.print.addEventListener('click', () => {
+  dom.appMenu.open = false;
+  window.print();
+});
+dom.openPlanning.addEventListener('click', () => dom.planning.showModal());
+dom.closePlanning.addEventListener('click', () => dom.planning.close());
+dom.openRules.addEventListener('click', () => {
+  dom.appMenu.open = false;
+  dom.rules.showModal();
+});
 dom.closeRules.addEventListener('click', () => dom.rules.close());
 dom.successClose.addEventListener('click', () => dom.success.close());
 dom.themeToggle.addEventListener('click', () => {
   applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
 });
-mobileLayout.addEventListener('change', (event) => {
+dom.appMenu.addEventListener('click', (event) => {
+  if (event.target instanceof Element && event.target.closest('button')) dom.appMenu.open = false;
+});
+dom.visualAidsEnabled.addEventListener('change', () => {
+  applyAccessibilityPreferences({ visualAids: dom.visualAidsEnabled.checked });
+});
+dom.colorVisionMode.addEventListener('change', () => {
+  applyAccessibilityPreferences({ colorVision: dom.colorVisionMode.value });
+});
+compactLayout.addEventListener('change', (event) => {
   dom.caseSettings.open = !event.matches;
   state.boardViewMode = event.matches ? state.boardViewMode : 'fit';
   setBoardViewMode(state.boardViewMode);
 });
 new ResizeObserver(() => {
-  if (fitBoardToViewport()) window.requestAnimationFrame(() => renderBoard());
+  const hadBoardFocus = dom.board.contains(document.activeElement);
+  const focusedCellKey = state.focusedCellKey;
+  if (fitBoardToViewport()) {
+    window.requestAnimationFrame(() => {
+      renderBoard();
+      if (hadBoardFocus && focusedCellKey) focusBoardCell(focusedCellKey);
+    });
+  }
 }).observe(dom.boardScroll);
+function isEditableTarget(target) {
+  return target instanceof HTMLElement
+    && (target.isContentEditable || ['INPUT', 'SELECT', 'TEXTAREA'].includes(target.tagName));
+}
 document.addEventListener('keydown', (event) => {
+  if (isEditableTarget(event.target)) return;
   if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
   if (event.key.toLowerCase() === 'z' && !event.shiftKey) {
     event.preventDefault();
@@ -1246,13 +1354,15 @@ featureHost.start({
   setStatus,
   translate: (key, parameters = {}) => translate(state.locale, key, parameters),
 });
-dom.caseSettings.open = !mobileLayout.matches;
+dom.caseSettings.open = !compactLayout.matches;
 applyTheme(document.documentElement.dataset.theme, false);
+applyAccessibilityPreferences(getInitialAccessibilityPreferences(), false);
 applyLocale(state.locale, false);
 let initialGeneration = null;
 initialGeneration = parseChallengeUrl(window.location.href, GENERATOR_VERSION);
 try {
-  initialGeneration ??= JSON.parse(localStorage.getItem(CURRENT_DRAFT_STORAGE_KEY))?.generation ?? null;
+  const savedGeneration = JSON.parse(localStorage.getItem(CURRENT_DRAFT_STORAGE_KEY))?.generation;
+  initialGeneration ??= normalizeGenerationOptions(savedGeneration);
 } catch {
   // Start a fresh case when the current draft is unavailable or invalid.
 }

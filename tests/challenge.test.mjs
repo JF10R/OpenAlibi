@@ -1,5 +1,9 @@
 import assert from 'node:assert/strict';
-import { createChallengeUrl, parseChallengeUrl } from '../src/challenge.js';
+import {
+  createChallengeUrl,
+  normalizeGenerationOptions,
+  parseChallengeUrl,
+} from '../src/challenge.js';
 import { GENERATOR_VERSION, generatePuzzle } from '../src/core.js';
 
 const puzzle = generatePuzzle({
@@ -45,5 +49,30 @@ const invalidSize = new URL(challengeUrl);
 invalidSize.searchParams.set('rows', '13');
 assert.equal(parseChallengeUrl(invalidSize, GENERATOR_VERSION), null);
 assert.equal(parseChallengeUrl('https://example.test/play?seed=IGNORED', GENERATOR_VERSION), null);
+
+assert.deepEqual(normalizeGenerationOptions({
+  rows: 8,
+  cols: 10,
+  density: 0.8,
+  difficulty: 'expert',
+  caseType: 'restrictedAccess',
+  seed: ' VALID-DRAFT ',
+}), {
+  rows: 8,
+  cols: 10,
+  density: 0.8,
+  difficulty: 'expert',
+  caseType: 'restrictedAccess',
+  seed: 'VALID-DRAFT',
+});
+assert.equal(normalizeGenerationOptions({ rows: 99, seed: 'BROKEN-DRAFT' }), null);
+assert.equal(normalizeGenerationOptions({
+  rows: 8,
+  cols: 8,
+  density: 4,
+  difficulty: 'expert',
+  caseType: 'mixed',
+  seed: 'BROKEN-DENSITY',
+}), null);
 
 console.log('OK — shareable challenge identity validated.');

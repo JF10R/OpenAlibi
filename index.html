@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-visual-aids="false" data-color-vision="standard">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
@@ -18,21 +18,40 @@
 </head>
 <body>
   <header class="app-header">
-    <div>
-      <p class="eyebrow" data-i18n="ui.brandEyebrow">Mystery logic grids · Grilles d’enquête · Cuadrículas de misterio</p>
-      <h1>Open<span>Alibi</span></h1>
+    <div class="brand-lockup">
+      <span class="brand-mark" aria-hidden="true">OA</span>
+      <div>
+        <h1>OpenAlibi</h1>
+        <p class="brand-tagline" data-i18n="ui.brandTagline">Deduce the truth, one room at a time.</p>
+      </div>
     </div>
     <div class="header-actions">
-      <label class="language-control">
-        <span data-i18n="ui.language">Language</span>
-        <select id="language">
-          <option value="en">English</option>
-          <option value="fr">Français</option>
-          <option value="es">Español</option>
-        </select>
-      </label>
-      <button id="theme-toggle" class="button ghost" type="button" aria-pressed="false">Dark mode</button>
-      <button id="open-rules" class="button ghost" type="button" data-i18n="ui.rules">Rules</button>
+      <details id="app-menu" class="app-menu">
+        <summary class="button ghost" data-i18n="ui.menu">Menu</summary>
+        <div class="app-menu-panel">
+          <div class="app-menu-section">
+            <strong data-i18n="ui.interfaceOptions">Interface</strong>
+            <label class="language-control">
+              <span data-i18n="ui.language">Language</span>
+              <select id="language">
+                <option value="en">English</option>
+                <option value="fr">Français</option>
+                <option value="es">Español</option>
+              </select>
+            </label>
+            <button id="theme-toggle" class="button ghost" type="button" aria-pressed="false">Dark mode</button>
+            <button id="open-rules" class="button ghost" type="button" data-i18n="ui.rules">Rules</button>
+          </div>
+          <div class="app-menu-section">
+            <strong data-i18n="ui.caseActions">Case actions</strong>
+            <button id="clear" class="button ghost" type="button" data-i18n="ui.clear">Clear</button>
+            <button id="reveal" class="button danger" type="button" data-i18n="ui.reveal">Reveal</button>
+            <button id="share-challenge" class="button ghost" type="button" data-i18n="ui.shareChallenge">Copy challenge link</button>
+            <button id="export-json" class="button ghost" type="button" data-i18n="ui.exportJson">Export JSON</button>
+            <button id="print" class="button ghost" type="button" data-i18n="ui.print">Print</button>
+          </div>
+        </div>
+      </details>
     </div>
   </header>
 
@@ -87,6 +106,23 @@
                 <button id="randomize-seed" class="button ghost compact" type="button" data-i18n="ui.randomizeSeed">New seed</button>
               </span>
             </div>
+            <fieldset class="accessibility-settings full">
+              <legend data-i18n="ui.accessibility">Accessibility</legend>
+              <label class="accessibility-option" for="visual-aids-enabled">
+                <span><input id="visual-aids-enabled" type="checkbox" aria-describedby="visual-aids-help" /> <span data-i18n="ui.visualAids">Enhanced visual labels</span></span>
+                <small id="visual-aids-help" data-i18n="ui.visualAidsHelp">Show object names, full room names, stronger patterns, and clearer coordinates.</small>
+              </label>
+              <label for="color-vision-mode">
+                <span data-i18n="ui.colorVision">Color distinction</span>
+                <select id="color-vision-mode" aria-describedby="color-vision-help">
+                  <option value="standard" data-i18n="ui.colorStandard">Standard palette</option>
+                  <option value="red-green" data-i18n="ui.colorRedGreen">Red–green support</option>
+                  <option value="blue-yellow" data-i18n="ui.colorBlueYellow">Blue–yellow support</option>
+                  <option value="monochrome" data-i18n="ui.colorMonochrome">Monochrome</option>
+                </select>
+                <small id="color-vision-help" data-i18n="ui.colorVisionHelp">Uses distinct palettes, patterns, labels, and status symbols instead of color alone.</small>
+              </label>
+            </fieldset>
           </div>
           <button id="generate" class="button primary wide" type="button" data-i18n="ui.generate">Generate a unique case</button>
 
@@ -116,6 +152,16 @@
 
       <div class="workspace-grid">
         <section class="board-panel panel">
+          <section class="suspects-panel" aria-labelledby="characters-title">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow" data-i18n="ui.testimonies">Testimonies</p>
+                <h2 id="characters-title" data-i18n="ui.characters">Characters</h2>
+              </div>
+            </div>
+            <div id="active-character" class="active-character"></div>
+            <div id="suspects" class="suspect-list"></div>
+          </section>
           <div class="board-toolbar">
             <div>
               <h3 data-i18n="ui.crimeScene">Crime scene</h3>
@@ -125,14 +171,9 @@
               </p>
             </div>
             <div class="board-tools">
-              <div class="board-mode" role="group" aria-label="Board interaction mode" data-i18n-aria-label="ui.boardMode">
-                <button id="mode-place" class="button ghost compact" type="button" aria-pressed="true" data-i18n="ui.modePlace">Place</button>
-                <button id="mode-mark" class="button ghost compact" type="button" aria-pressed="false" data-i18n="ui.modeMark">Mark ×</button>
-                <button id="mode-candidate" class="button ghost compact" type="button" aria-pressed="false" data-i18n="ui.modeCandidate">Pencil</button>
-                <button id="mode-tentative" class="button ghost compact" type="button" aria-pressed="false" data-i18n="ui.modeTentative">Try</button>
-              </div>
+              <button id="mode-place" class="button ghost compact" type="button" aria-pressed="true" data-i18n="ui.modePlace">Place</button>
+              <button id="open-planning" class="button ghost compact" type="button" aria-pressed="false" data-i18n="ui.planning">Planning</button>
               <button id="board-view-mode" class="button ghost compact" type="button" aria-pressed="false" data-i18n="ui.zoomBoard">Zoom</button>
-              <button id="print" class="button ghost compact" type="button" data-i18n="ui.print">Print</button>
             </div>
           </div>
           <p class="board-scroll-hint" data-i18n="ui.boardScrollHint">Swipe to explore larger grids.</p>
@@ -140,45 +181,46 @@
             <div id="board" class="board" aria-label="Mystery logic grid" data-i18n-aria-label="ui.boardAria"></div>
           </div>
         </section>
-
-        <section class="suspects-panel panel">
-          <div class="panel-heading">
-            <div>
-              <p class="eyebrow" data-i18n="ui.testimonies">Testimonies</p>
-              <h2 data-i18n="ui.characters">Characters</h2>
-            </div>
-          </div>
-          <div id="suspects" class="suspect-list"></div>
-        </section>
       </div>
 
       <section class="resolution-panel panel">
-        <div id="active-character" class="active-character"></div>
-        <div class="theory-controls" role="group" aria-label="Saved theory workspaces" data-i18n-aria-label="ui.theorySpaces">
-          <label for="theory-slot" data-i18n="ui.theorySlot">Theory</label>
-          <select id="theory-slot" aria-label="Theory slot" data-i18n-aria-label="ui.theorySlot">
-            <option value="0">A</option>
-            <option value="1">B</option>
-            <option value="2">C</option>
-          </select>
-          <button id="save-theory" class="button ghost compact" type="button" data-i18n="ui.saveTheory">Save current</button>
-          <button id="load-theory" class="button ghost compact" type="button" data-i18n="ui.loadTheory" disabled>Load</button>
-          <button id="clear-theory" class="button ghost compact" type="button" data-i18n="ui.clearTheory" disabled>Delete</button>
-        </div>
         <div class="action-row">
           <button id="check" class="button primary" type="button" data-i18n="ui.check">Check answers</button>
           <button id="undo" class="button ghost" type="button" data-i18n="ui.undo" disabled>Undo</button>
           <button id="redo" class="button ghost" type="button" data-i18n="ui.redo" disabled>Redo</button>
           <button id="hint" class="button secondary" type="button" data-i18n="ui.getHint">Get a hint</button>
-          <button id="clear" class="button ghost" type="button" data-i18n="ui.clear">Clear</button>
-          <button id="reveal" class="button danger" type="button" data-i18n="ui.reveal">Reveal</button>
-          <button id="share-challenge" class="button ghost" type="button" data-i18n="ui.shareChallenge">Copy challenge link</button>
-          <button id="export-json" class="button ghost" type="button" data-i18n="ui.exportJson">Export JSON</button>
         </div>
         <p id="status" class="status" aria-live="polite" data-i18n="ui.initializing">Initializing…</p>
       </section>
     </section>
   </main>
+
+  <dialog id="planning-dialog" class="modal planning-modal" aria-labelledby="planning-title">
+    <div class="modal-header">
+      <div>
+        <p class="eyebrow" data-i18n="ui.planning">Planning</p>
+        <h2 id="planning-title" data-i18n="ui.planningTitle">Deduction workspace</h2>
+      </div>
+      <button id="close-planning" class="button ghost compact" type="button" data-i18n="ui.close">Close</button>
+    </div>
+    <p data-i18n="ui.planningIntro">Mark exclusions, keep pencil candidates, try placements, or save alternate theories.</p>
+    <div class="board-mode planning-modes" role="group" aria-label="Board interaction mode" data-i18n-aria-label="ui.boardMode">
+      <button id="mode-mark" class="button ghost" type="button" aria-pressed="false" data-i18n="ui.modeMark">Mark ×</button>
+      <button id="mode-candidate" class="button ghost" type="button" aria-pressed="false" data-i18n="ui.modeCandidate">Pencil</button>
+      <button id="mode-tentative" class="button ghost" type="button" aria-pressed="false" data-i18n="ui.modeTentative">Try</button>
+    </div>
+    <div class="theory-controls" role="group" aria-label="Saved theory workspaces" data-i18n-aria-label="ui.theorySpaces">
+      <label for="theory-slot" data-i18n="ui.theorySlot">Theory</label>
+      <select id="theory-slot" aria-label="Theory slot" data-i18n-aria-label="ui.theorySlot">
+        <option value="0">A</option>
+        <option value="1">B</option>
+        <option value="2">C</option>
+      </select>
+      <button id="save-theory" class="button ghost compact" type="button" data-i18n="ui.saveTheory">Save current</button>
+      <button id="load-theory" class="button ghost compact" type="button" data-i18n="ui.loadTheory" disabled>Load</button>
+      <button id="clear-theory" class="button ghost compact" type="button" data-i18n="ui.clearTheory" disabled>Delete</button>
+    </div>
+  </dialog>
 
   <dialog id="rules-dialog" class="modal" aria-labelledby="rules-title">
     <div class="modal-header">

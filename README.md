@@ -33,6 +33,8 @@ The objective is to place every character, locate the victim, and identify the m
 | **Trilingual interface** | The complete experience supports English, French, and Spanish, including generated names and testimonies. |
 | **Zero runtime dependencies** | The application uses native HTML, CSS, and JavaScript only. |
 | **Complete interface** | Pencil candidates, trial placements, undo/redo, autosave, dark mode, printing, hints, and JSON export are included. |
+| **Accessible visuals** | Persistent visual labels, high-contrast treatment, color-vision palettes, patterns, and status symbols avoid color-only information. |
+| **Responsive workspace** | Characters, complete active clues, and the fitted grid stay together across mobile, tablet, and desktop layouts. |
 | **Fair challenges** | Reproducible links share only the seed and case settings. |
 
 ## How to play
@@ -149,6 +151,7 @@ The test suites cover:
 - translation catalog completeness;
 - locale-specific names and pronouns;
 - semantic stability across languages;
+- visual accessibility preference handling;
 - core interface contracts.
 
 ## Architecture
@@ -159,6 +162,7 @@ openalibi/
 ├── styles.css                Layout, themes, responsiveness, and print styles
 ├── src/
 │   ├── app.js                State, rendering, interactions, and locale switching
+│   ├── accessibility.js      Persistent visual and color-vision preferences
 │   ├── challenge.js          Canonical challenge links
 │   ├── core.js               Generator, constraints, solver, and validation
 │   ├── feature-config.js     Public optional-feature configuration
@@ -167,6 +171,7 @@ openalibi/
 │   └── progress.js           Draft serialization and immutable undo/redo history
 ├── tests/
 │   ├── generator.test.mjs    Generator and solver tests
+│   ├── accessibility.test.mjs Accessibility preference tests
 │   ├── challenge.test.mjs    Shared-case identity tests
 │   ├── features.test.mjs     Optional-feature isolation tests
 │   ├── progress.test.mjs     Persistence and history tests
