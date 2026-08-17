@@ -1296,16 +1296,36 @@ export function solvePuzzle(puzzle, options = {}) {
   const clues = options.clues ?? puzzle.clues;
   const cluesByCharacter = new Map(puzzle.characters.map((character) => [character.id, []]));
   const relationClues = [];
+  const exclusiveObjectOwners = new Map();
   for (const clue of clues) {
     cluesByCharacter.get(clue.characterId).push(clue);
     if (clue.otherId) relationClues.push(clue);
+    if (clue.type === 'onlyOnObject') {
+      const hasExistingOwner = exclusiveObjectOwners.has(clue.value);
+      const existingOwner = exclusiveObjectOwners.get(clue.value);
+      exclusiveObjectOwners.set(
+        clue.value,
+        hasExistingOwner && existingOwner !== clue.characterId ? null : clue.characterId,
+      );
+    }
   }
 
   const occupiableCells = puzzle.cells.filter((cell) => cell.occupiable);
+  function matchesExclusiveObjects(characterId, cell) {
+    for (const [objectType, ownerId] of exclusiveObjectOwners) {
+      if (ownerId === null) return false;
+      if (characterId === ownerId ? cell.object !== objectType : cell.object === objectType) return false;
+    }
+    return true;
+  }
+
   const baseDomains = new Map();
   for (const character of puzzle.characters) {
     const unaryClues = cluesByCharacter.get(character.id).filter((clue) => !clue.otherId && clue.type !== 'aloneInRoom');
-    baseDomains.set(character.id, occupiableCells.filter((cell) => unaryClues.every((clue) => unaryClueMatches(puzzle, clue, cell))));
+    baseDomains.set(character.id, occupiableCells.filter((cell) => (
+      unaryClues.every((clue) => unaryClueMatches(puzzle, clue, cell))
+      && matchesExclusiveObjects(character.id, cell)
+    )));
   }
 
   const placement = {};

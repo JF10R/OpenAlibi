@@ -380,6 +380,22 @@ assert.equal(
   1,
   'sole-rug evidence must reflect the complete solution',
 );
+const saturatedRugCells = soleRugPuzzle.cells.map((cell) => (
+  cell.occupiable ? { ...cell, object: 'carpet' } : { ...cell }
+));
+const impossibleSoleRugPuzzle = {
+  ...soleRugPuzzle,
+  cells: saturatedRugCells,
+  cellByKey: new Map(saturatedRugCells.map((cell) => [cell.key, cell])),
+};
+const soleRugPruning = solvePuzzle(impossibleSoleRugPuzzle, {
+  clues: [soleRugClue],
+  maxSolutions: 2,
+  maxNodes: 50,
+});
+assert.equal(soleRugPruning.aborted, false, 'sole-object conflicts must be rejected before exhaustive search');
+assert.equal(soleRugPruning.count, 0, 'multiple rug occupants must make sole-rug evidence impossible');
+assert.ok(soleRugPruning.stats.nodes <= 2, 'sole-object evidence must prune incompatible domains immediately');
 
 const largeRugPuzzle = generatePuzzle({
   rows: 10,
