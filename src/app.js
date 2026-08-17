@@ -706,10 +706,13 @@ function renderHeader() {
     caseType,
     seed: dom.seed.value,
   });
-  dom.caseRule.textContent = translate(
+  const culpabilityRule = translate(
     state.locale,
     `ui.boardRule${puzzle.caseType[0].toUpperCase()}${puzzle.caseType.slice(1)}`,
   );
+  dom.caseRule.textContent = puzzle.caseType === 'coPresence'
+    ? culpabilityRule
+    : `${translate(state.locale, 'ui.boardVictimRule')} ${culpabilityRule}`;
 }
 
 function avatarMarkup(character, small = false) {

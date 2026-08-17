@@ -63,6 +63,7 @@ assert.match(files.app, /openalibi-current-draft/, 'the active case must be rest
 assert.match(files.app, /createFeatureHost\(APP_FEATURES/, 'optional features must use the public host contract');
 assert.match(files.app, /archetype:\s*state\.puzzle\.caseType/, 'feature events must expose the generated investigation archetype');
 assert.match(files.app, /mounts:\s*featureMounts/, 'optional features must receive stable DOM mounts');
+assert.match(files.app, /boardVictimRule/, 'indirect victim placement rules must be visible instead of hidden in the solver');
 assert.match(files.app, /publishFeatureEvent\('case-solved'/, 'case completion must expose a stable lifecycle event');
 assert.match(files.app, /publishFeatureEvent\('hint-used'/, 'assistance tracking must expose a stable lifecycle event');
 assert.match(files.app, /publishFeatureEvent\('solution-revealed'/, 'reveals must expose a stable lifecycle event');

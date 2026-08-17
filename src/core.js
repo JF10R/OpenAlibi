@@ -15,7 +15,7 @@ import {
   translate,
 } from './i18n.js';
 
-export const GENERATOR_VERSION = 7;
+export const GENERATOR_VERSION = 8;
 export const RANDOM_SEED_LENGTH = 10;
 export const MAX_CARDINAL_CLUE_SHARE = 0.12;
 
@@ -786,16 +786,15 @@ function selectCaseType(requestedCaseType, rng) {
 }
 
 function deriveCaseDisposition(caseType, rows, cols, rooms, cells, characters, victimId, rng) {
+  const disposition = generateSolution(rows, cols, rooms, cells, characters, victimId, rng);
   if (caseType === 'coPresence') {
-    const disposition = generateSolution(rows, cols, rooms, cells, characters, victimId, rng);
     return {
       ...disposition,
       caseRule: { type: 'coPresence' },
-      solution: disposition.solution,
     };
   }
 
-  const solution = generateGenericSolution(rows, cols, cells, characters, rng);
+  const { solution } = disposition;
   const cellByKey = new Map(cells.map((cell) => [cell.key, cell]));
   const suspects = characters.filter((character) => character.id !== victimId);
 
@@ -807,8 +806,8 @@ function deriveCaseDisposition(caseType, rows, cols, rooms, cells, characters, v
         const matching = suspects.filter((character) => (
           distanceFromObject({ cells }, cellByKey.get(solution[character.id]), objectType) === distance
         ));
-        if (matching.length === 1) {
-          rules.push({ objectType, distance, killerId: matching[0].id });
+        if (matching.length === 1 && matching[0].id === disposition.killerId) {
+          rules.push({ objectType, distance });
         }
       }
     }
@@ -816,37 +815,30 @@ function deriveCaseDisposition(caseType, rows, cols, rooms, cells, characters, v
     if (!selected) throw new Error('Unable to derive a unique material-evidence rule.');
     return {
       solution,
-      killerId: selected.killerId,
-      murderRoomId: null,
+      killerId: disposition.killerId,
+      murderRoomId: disposition.murderRoomId,
       caseRule: {
         type: 'evidenceTrail',
         objectType: selected.objectType,
         distance: selected.distance,
-        victimCellKey: solution[victimId],
       },
     };
   }
 
-  const victimCell = cellByKey.get(solution[victimId]);
-  const victimRoom = rooms.find((room) => room.id === victimCell.roomId);
-  const accessRules = shuffle(rng, victimRoom.neighborIds)
-    .map((accessRoomId) => ({
-      accessRoomId,
-      occupants: suspects.filter((character) => (
-        cellByKey.get(solution[character.id]).roomId === accessRoomId
-      )),
-    }))
-    .filter(({ occupants }) => occupants.length === 1);
-  const selected = accessRules[0];
-  if (!selected) throw new Error('Unable to derive a unique restricted-access rule.');
+  const accessRoomId = disposition.murderRoomId;
+  const occupants = suspects.filter((character) => (
+    cellByKey.get(solution[character.id]).roomId === accessRoomId
+  ));
+  if (occupants.length !== 1 || occupants[0].id !== disposition.killerId) {
+    throw new Error('Unable to derive a unique restricted-access rule.');
+  }
   return {
     solution,
-    killerId: selected.occupants[0].id,
-    murderRoomId: null,
+    killerId: disposition.killerId,
+    murderRoomId: disposition.murderRoomId,
     caseRule: {
       type: 'restrictedAccess',
-      accessRoomId: selected.accessRoomId,
-      victimCellKey: solution[victimId],
+      accessRoomId,
     },
   };
 }
@@ -935,19 +927,11 @@ export function describeClue(puzzle, clue, locale = puzzle.locale) {
       return translate(locale, `clues.evidenceTrail${puzzle.caseRule.distance === 1 ? 'One' : 'Many'}`, {
         distance: puzzle.caseRule.distance,
         object: getObjectCopy(locale, puzzle.caseRule.objectType).afterOf,
-        cell: puzzle.caseRule.victimCellKey
-          .split(',')
-          .map((part) => Number(part) + 1)
-          .join('.'),
       });
     case 'restrictedAccess': {
       const room = puzzle.rooms.find((item) => item.id === puzzle.caseRule.accessRoomId);
       return translate(locale, 'clues.restrictedAccess', {
         room: room?.name ?? '',
-        cell: puzzle.caseRule.victimCellKey
-          .split(',')
-          .map((part) => Number(part) + 1)
-          .join('.'),
       });
     }
     case 'room': {
@@ -1306,22 +1290,23 @@ function fullClueMatches(puzzle, clue, placement) {
 function caseRuleMatches(puzzle, placement) {
   const complete = Object.keys(placement).length === puzzle.characters.length;
   const rule = puzzle.caseRule ?? { type: 'coPresence' };
+  const victimKey = placement[puzzle.victimId];
+  const victimRoomId = victimKey ? puzzle.cellByKey.get(victimKey).roomId : null;
+  const victimCompanions = victimRoomId
+    ? puzzle.characters.filter((character) => (
+      !character.isVictim
+      && placement[character.id]
+      && puzzle.cellByKey.get(placement[character.id]).roomId === victimRoomId
+    ))
+    : [];
+  if (victimCompanions.length > 1 || (complete && victimCompanions.length !== 1)) return false;
 
   if (rule.type === 'coPresence') {
-    const victimKey = placement[puzzle.victimId];
-    if (!victimKey) return true;
-    const victimRoom = puzzle.cellByKey.get(victimKey).roomId;
-    const sameRoomCount = Object.values(placement)
-      .map((key) => puzzle.cellByKey.get(key))
-      .filter((cell) => cell.roomId === victimRoom)
-      .length;
-    if (sameRoomCount > 2) return false;
-    return !complete || sameRoomCount === 2;
+    return true;
   }
 
   if (rule.type === 'evidenceTrail') {
-    if (placement[puzzle.victimId] && placement[puzzle.victimId] !== rule.victimCellKey) return false;
-    const matchingCount = puzzle.characters
+    const matching = puzzle.characters
       .filter((character) => !character.isVictim && placement[character.id])
       .filter((character) => (
         distanceFromObject(
@@ -1329,26 +1314,18 @@ function caseRuleMatches(puzzle, placement) {
           puzzle.cellByKey.get(placement[character.id]),
           rule.objectType,
         ) === rule.distance
-      ))
-      .length;
-    return matchingCount <= 1 && (!complete || matchingCount === 1);
+      ));
+    if (matching.length > 1) return false;
+    return !complete || (matching.length === 1 && victimCompanions[0]?.id === matching[0].id);
   }
 
-  const victimKey = placement[puzzle.victimId];
-  if (victimKey) {
-    if (victimKey !== rule.victimCellKey) return false;
-    const victimRoom = puzzle.rooms.find((room) => (
-      room.id === puzzle.cellByKey.get(victimKey).roomId
-    ));
-    if (!victimRoom.neighborIds.includes(rule.accessRoomId)) return false;
-  }
-  const matchingCount = puzzle.characters
+  const matching = puzzle.characters
     .filter((character) => !character.isVictim && placement[character.id])
     .filter((character) => (
       puzzle.cellByKey.get(placement[character.id]).roomId === rule.accessRoomId
-    ))
-    .length;
-  return matchingCount <= 1 && (!complete || matchingCount === 1);
+    ));
+  if (matching.length > 1) return false;
+  return !complete || (matching.length === 1 && victimCompanions[0]?.id === matching[0].id);
 }
 
 function relationForwardCheck(puzzle, clue, placement, domains) {

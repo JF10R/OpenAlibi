@@ -9,6 +9,7 @@ import {
   createRng,
   createRandomSeed,
   generatePuzzle,
+  localizePuzzle,
   selectCharacterCount,
   serializePuzzle,
   solvePuzzle,
@@ -146,7 +147,7 @@ for (const seed of randomSeeds) {
 
 for (const options of scenarios) {
   const puzzle = generatePuzzle(options);
-  assert.equal(puzzle.version, 7, 'localized cases must use generator format version 7');
+  assert.equal(puzzle.version, 8, 'localized cases must use generator format version 8');
   assert.equal(puzzle.rows, options.rows);
   assert.equal(puzzle.cols, options.cols);
   assert.ok(puzzle.characters.length <= Math.min(options.rows, options.cols));
@@ -322,7 +323,7 @@ const clueVarietyPuzzle = generatePuzzle({
   rows: 8,
   cols: 8,
   difficulty: 'difficile',
-  seed: 'CLUE-VARIETY-5',
+  seed: 'CLUE-VARIETY-9',
   locale: 'en',
 });
 const clueVarietyTypes = new Set(clueVarietyPuzzle.clues.map((clue) => clue.type));
@@ -434,7 +435,7 @@ const fullLargeExpert = generatePuzzle({
   rows: 10,
   cols: 10,
   difficulty: 'expert',
-  seed: 'EXPERT-LARGE-3',
+  seed: 'EXPERT-LARGE-4',
   locale: 'en',
 });
 assert.ok(sparseLargeExpert.characters.length <= 8, 'a large expert case may leave at least two rows and columns empty');
@@ -453,7 +454,21 @@ for (const [index, caseType] of Object.keys(CASE_TYPES).entries()) {
   assert.ok(puzzle.clues.every((clue) => clue.description.length > 0));
   assert.ok(puzzle.clues.every((clue) => !/\b1 cells\b/.test(clue.description)));
   assert.ok(puzzle.caseRule && puzzle.caseRule.type === caseType, `${caseType} must serialize its culpability rule`);
+  assert.equal(
+    'victimCellKey' in puzzle.caseRule,
+    false,
+    `${caseType} must not encode the victim's exact cell as evidence`,
+  );
   assert.equal(puzzle.cluesByCharacter[puzzle.victimId][0].type, CASE_TYPES[caseType].narrativeClue);
+  for (const locale of ['en', 'fr', 'es']) {
+    localizePuzzle(puzzle, locale);
+    const victimNarrative = puzzle.cluesByCharacter[puzzle.victimId][0].description;
+    assert.doesNotMatch(
+      victimNarrative,
+      /\b\d{1,2}[.,]\d{1,2}\b/,
+      `${caseType} must not reveal the victim's coordinates in ${locale}`,
+    );
+  }
   const solved = solvePuzzle(puzzle, { maxSolutions: 2, collectSolutions: true });
   assert.equal(solved.count, 1, `${caseType} must have one spatial solution`);
   const validation = validatePlayerState(puzzle, puzzle.solution);
