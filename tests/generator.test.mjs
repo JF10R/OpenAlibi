@@ -157,7 +157,7 @@ assert.equal(
 const randomSeeds = Array.from({ length: 128 }, () => createRandomSeed());
 assert.equal(new Set(randomSeeds).size, randomSeeds.length, 'generated seeds must not collide in a representative sample');
 for (const seed of randomSeeds) {
-  assert.match(seed, /^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{10}$/, 'generated seeds must be compact and unambiguous');
+  assert.match(seed, /^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{12}$/, 'generated seeds must provide a compact 60-bit identity');
 }
 
 for (const options of scenarios) {

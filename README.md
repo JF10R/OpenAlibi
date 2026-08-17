@@ -35,7 +35,7 @@ The objective is to place every character, locate the victim, and identify the m
 | **Complete interface** | Pencil candidates, trial placements, undo/redo, autosave, dark mode, printing, hints, and JSON export are included. |
 | **Accessible visuals** | Persistent visual labels, high-contrast treatment, color-vision palettes, patterns, and status symbols avoid color-only information. |
 | **Responsive workspace** | Characters, complete active clues, and the fitted grid stay together across mobile, tablet, and desktop layouts. |
-| **Fair challenges** | Reproducible links share only the seed and case settings. |
+| **Fair challenges** | Reproducible links share the generator version, exact seed, and case settings. |
 
 ## How to play
 
@@ -116,7 +116,7 @@ To add a language, extend its catalogs with the same translation keys and regist
 
 ## Seeds and reproducibility
 
-Automatically generated seeds contain 10 unambiguous characters. A case identity uses a 128-bit digest derived from:
+Automatically generated seeds contain 12 unambiguous base-32 characters, providing 60 bits of random identity. A case identity uses a 128-bit digest derived from:
 
 - the generator version;
 - the visible seed;
@@ -128,7 +128,9 @@ Automatically generated seeds contain 10 unambiguous characters. A case identity
 
 The locale is intentionally excluded from the generation key. Changing languages preserves the map, objects, solution, and case ID while translating names and content.
 
-To reproduce a case, use the same seed and settings.
+To reproduce a case, use the same generator version, seed, and settings. The Share action copies a canonical URL containing all of them; it never includes draft progress or the solution.
+
+Longer seeds reduce collision risk but do not preserve behavior across generator upgrades. Generator versions are compatibility contracts: before incrementing `GENERATOR_VERSION`, freeze the previous implementation and keep it addressable by its version. Never route an older challenge URL through a newer generator or silently replace it with a fresh case.
 
 ## Tests
 
@@ -210,7 +212,7 @@ Keep source code, tests, documentation, commits, issues, and pull requests in En
 
 ## Project status
 
-OpenAlibi is under active development. The current generator format is **version 6**.
+OpenAlibi is under active development. The current generator format is **version 11**.
 
 ## License
 

@@ -16,7 +16,7 @@ import {
 } from './i18n.js';
 
 export const GENERATOR_VERSION = 11;
-export const RANDOM_SEED_LENGTH = 10;
+export const RANDOM_SEED_LENGTH = 12;
 export const MAX_CARDINAL_CLUE_SHARE = 0.12;
 export const MAX_CLUE_TYPE_SHARE = 0.4;
 export const MAX_DISTANCE_CLUE_SHARE = 0.25;
