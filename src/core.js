@@ -15,7 +15,7 @@ import {
   translate,
 } from './i18n.js';
 
-export const GENERATOR_VERSION = 10;
+export const GENERATOR_VERSION = 11;
 export const RANDOM_SEED_LENGTH = 10;
 export const MAX_CARDINAL_CLUE_SHARE = 0.12;
 export const MAX_CLUE_TYPE_SHARE = 0.4;
@@ -23,6 +23,7 @@ export const MAX_DISTANCE_CLUE_SHARE = 0.25;
 export const MAX_PERSON_DISTANCE_CLUE_SHARE = 0.2;
 
 const RANDOM_SEED_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+const WALL_TO_WALL_CARPET_CASE_RATE = 0.15;
 
 export const DIFFICULTIES = {
   facile: {
@@ -443,6 +444,7 @@ function placeObjects(rows, cols, rooms, config, rng) {
   const globalTypeCount = new Map(Object.keys(OBJECT_TYPES).map((type) => [type, 0]));
   const objects = [];
   let placed = 0;
+  const allowWallToWallCarpets = rng() < WALL_TO_WALL_CARPET_CASE_RATE;
 
   function isOnWall(cell, room) {
     return cell.row === room.top
@@ -515,7 +517,7 @@ function placeObjects(rows, cols, rooms, config, rng) {
 
   function placeObject(type, requiredRoom = null) {
     const rule = OBJECT_PLACEMENT_RULES[type];
-    const preferInsetCarpet = type === 'carpet' && rng() >= 0.3;
+    const requiresInsetCarpet = type === 'carpet' && !allowWallToWallCarpets;
     const candidateRooms = (requiredRoom ? [requiredRoom] : rooms)
       .filter((room) => roomCanReceive(room, type))
       .map((room) => {
@@ -531,12 +533,13 @@ function placeObjects(rows, cols, rooms, config, rng) {
           && fallbackCandidates.some(({ footprintCells }) => !spansRoomAxis(room, footprintCells));
         return {
           room,
+          hasInsetCarpet,
           score: roomObjectCount.get(room.id) / (room.height * room.width)
             - (type === 'carpet' ? largestFootprint * 0.08 : 0)
-            + (preferInsetCarpet && !hasInsetCarpet ? 1 : 0)
             + rng() * 0.04,
         };
       })
+      .filter(({ hasInsetCarpet }) => !requiresInsetCarpet || hasInsetCarpet)
       .sort((first, second) => first.score - second.score);
     const room = candidateRooms[0]?.room;
     if (!room) return false;
@@ -546,11 +549,10 @@ function placeObjects(rows, cols, rooms, config, rng) {
       candidates = candidatePlacements(room, type, 'any');
     }
     if (type === 'carpet' && candidates.length) {
-      if (preferInsetCarpet) {
-        const insetCandidates = candidates.filter(({ footprintCells }) => (
+      if (requiresInsetCarpet) {
+        candidates = candidates.filter(({ footprintCells }) => (
           !spansRoomAxis(room, footprintCells)
         ));
-        if (insetCandidates.length) candidates = insetCandidates;
       }
       const footprintSizes = [
         ...new Set(candidates.map(({ footprintCells }) => footprintCells.length)),

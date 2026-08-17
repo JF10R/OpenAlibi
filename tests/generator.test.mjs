@@ -162,7 +162,7 @@ for (const seed of randomSeeds) {
 
 for (const options of scenarios) {
   const puzzle = generatePuzzle(options);
-  assert.equal(puzzle.version, 10, 'localized cases must use generator format version 10');
+  assert.equal(puzzle.version, 11, 'localized cases must use generator format version 11');
   assert.equal(puzzle.rows, options.rows);
   assert.equal(puzzle.cols, options.cols);
   assert.ok(puzzle.characters.length <= Math.min(options.rows, options.cols));
@@ -331,7 +331,8 @@ const rugVariationPuzzles = Array.from({ length: 12 }, (_, index) => generatePuz
   seed: `RUG-VARIETY-${index}`,
   locale: 'fr',
 }));
-const seedsWithWallToWallRugs = rugVariationPuzzles.filter((puzzle) => {
+
+function hasWallToWallRug(puzzle) {
   const roomById = new Map(puzzle.rooms.map((room) => [room.id, room]));
   return puzzle.objects.some((object) => {
     if (object.type !== 'carpet') return false;
@@ -343,11 +344,35 @@ const seedsWithWallToWallRugs = rugVariationPuzzles.filter((puzzle) => {
       - Math.min(...footprintCells.map((cell) => cell.row)) + 1;
     return footprintWidth === room.width || footprintHeight === room.height;
   });
-});
+}
+
+const seedsWithWallToWallRugs = rugVariationPuzzles.filter(hasWallToWallRug);
 assert.ok(seedsWithWallToWallRugs.length > 0, 'wall-to-wall rugs must remain possible');
 assert.ok(
-  seedsWithWallToWallRugs.length < rugVariationPuzzles.length,
-  'wall-to-wall rugs must not be guaranteed in every seed',
+  seedsWithWallToWallRugs.length <= Math.ceil(rugVariationPuzzles.length / 3),
+  'wall-to-wall rugs must be limited to a minority of seeds',
+);
+
+const reportedWallToWallRugSeeds = [
+  'JS2D5YQVW9',
+  '1QM8ZJ4G47',
+  '3ZYT29HEM9',
+  'Q92YYWVS2W',
+];
+const reportedPuzzlesWithWallToWallRugs = reportedWallToWallRugSeeds
+  .map((seed) => generatePuzzle({
+    rows: 9,
+    cols: 9,
+    density: 1,
+    difficulty: 'difficile',
+    caseType: 'restrictedAccess',
+    seed,
+    locale: 'fr',
+  }))
+  .filter(hasWallToWallRug);
+assert.ok(
+  reportedPuzzlesWithWallToWallRugs.length <= 1,
+  'at most one of the reported seeds may receive a wall-to-wall rug',
 );
 
 const besideObjectPuzzle = generatePuzzle({
@@ -356,7 +381,7 @@ const besideObjectPuzzle = generatePuzzle({
   density: 1,
   difficulty: 'moyen',
   caseType: 'evidenceTrail',
-  seed: 'MIX-FINAL-2',
+  seed: 'MIX-FINAL-0',
   locale: 'fr',
 });
 const besideObjectClue = besideObjectPuzzle.clues.find((clue) => (
@@ -384,7 +409,7 @@ const soleRugPuzzle = generatePuzzle({
   density: 1,
   difficulty: 'difficile',
   caseType: 'coPresence',
-  seed: 'RUG-NODIST-6',
+  seed: 'RUG-NODIST-15',
   locale: 'fr',
 });
 const soleRugClue = soleRugPuzzle.clues.find((clue) => (
@@ -441,7 +466,7 @@ const clueVarietyPuzzle = generatePuzzle({
   rows: 8,
   cols: 8,
   difficulty: 'difficile',
-  seed: 'CLUE-VARIETY-0',
+  seed: 'CLUE-VARIETY-2',
   locale: 'en',
 });
 const clueVarietyTypes = new Set(clueVarietyPuzzle.clues.map((clue) => clue.type));
