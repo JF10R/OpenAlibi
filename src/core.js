@@ -15,8 +15,9 @@ import {
   translate,
 } from './i18n.js';
 
-export const GENERATOR_VERSION = 6;
+export const GENERATOR_VERSION = 7;
 export const RANDOM_SEED_LENGTH = 10;
+export const MAX_CARDINAL_CLUE_SHARE = 0.12;
 
 const RANDOM_SEED_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 
@@ -55,8 +56,8 @@ export const DIFFICULTIES = {
     objectRepeatTarget: 3,
   },
   expert: {
-    densityRange: [0.55, 0.8],
-    defaultDensity: 0.7,
+    densityRange: [0.55, 1],
+    defaultDensity: 0.85,
     roomFactor: 1.18,
     obstacleRate: 0.22,
     extraClues: 0,
@@ -77,7 +78,7 @@ export const CONSTRAINT_TYPES = [
   'room', 'row', 'col', 'rowHalf', 'colHalf', 'onObject', 'besideObject',
   'notBesideObject', 'aloneInRoom', 'sameRoom', 'notSameRoom', 'northOf',
   'southOf', 'westOf', 'eastOf', 'besidePerson', 'distanceFromObject',
-  'roomPosition',
+  'roomPosition', 'distanceFromPerson', 'roomContainsObject',
 ];
 
 const CARDINAL_CLUE_TYPES = new Set(['northOf', 'southOf', 'westOf', 'eastOf']);
@@ -97,6 +98,13 @@ export const OBJECT_TYPES = {
     footprints: [
       [[0, 0], [0, 1], [1, 0], [1, 1]],
       [[0, 0], [0, 1], [0, 2], [1, 0], [1, 1], [1, 2]],
+      [[0, 0], [0, 1], [0, 2], [0, 3], [1, 0], [1, 1], [1, 2], [1, 3]],
+      [[0, 0], [0, 1], [0, 2], [1, 0], [1, 1], [1, 2], [2, 0], [2, 1], [2, 2]],
+      [
+        [0, 0], [0, 1], [0, 2], [0, 3],
+        [1, 0], [1, 1], [1, 2], [1, 3],
+        [2, 0], [2, 1], [2, 2], [2, 3],
+      ],
     ],
   },
   puddle: { icon: '≈', occupiable: true, footprints: [[[0, 0]], [[0, 0], [0, 1]]] },
@@ -497,10 +505,22 @@ function placeObjects(rows, cols, rooms, config, rng) {
     const rule = OBJECT_PLACEMENT_RULES[type];
     const candidateRooms = (requiredRoom ? [requiredRoom] : rooms)
       .filter((room) => roomCanReceive(room, type))
-      .map((room) => ({
-        room,
-        score: roomObjectCount.get(room.id) / (room.height * room.width) + rng() * 0.04,
-      }))
+      .map((room) => {
+        const preferredCandidates = candidatePlacements(room, type);
+        const fallbackCandidates = preferredCandidates.length
+          ? preferredCandidates
+          : candidatePlacements(room, type, 'any');
+        const largestFootprint = Math.max(
+          0,
+          ...fallbackCandidates.map(({ footprintCells }) => footprintCells.length),
+        );
+        return {
+          room,
+          score: roomObjectCount.get(room.id) / (room.height * room.width)
+            - (type === 'carpet' ? largestFootprint * 0.08 : 0)
+            + rng() * 0.04,
+        };
+      })
       .sort((first, second) => first.score - second.score);
     const room = candidateRooms[0]?.room;
     if (!room) return false;
@@ -508,6 +528,12 @@ function placeObjects(rows, cols, rooms, config, rng) {
     let candidates = candidatePlacements(room, type);
     if (!candidates.length && rule.zone === 'center') {
       candidates = candidatePlacements(room, type, 'any');
+    }
+    if (type === 'carpet' && candidates.length) {
+      const largestFootprint = Math.max(
+        ...candidates.map(({ footprintCells }) => footprintCells.length),
+      );
+      candidates = candidates.filter(({ footprintCells }) => footprintCells.length === largestFootprint);
     }
     const candidate = sample(rng, candidates);
     if (!candidate) return false;
@@ -607,9 +633,23 @@ function getNeighbors(puzzleLike, cell, sameRoomOnly = true) {
     .filter((neighbor) => !sameRoomOnly || neighbor.roomId === cell.roomId);
 }
 
-function selectCharacterCount(rows, cols, density) {
+export function selectCharacterCount(rows, cols, density, difficulty = 'moyen', rng = Math.random) {
   const maxCharacters = Math.min(rows, cols);
-  return clamp(Math.round(maxCharacters * density), 4, maxCharacters);
+  if (difficulty !== 'expert' || density >= 0.999) {
+    return clamp(Math.round(maxCharacters * density), 4, maxCharacters);
+  }
+
+  const variability = maxCharacters >= 9 ? 0.2 : 0.14;
+  const [minimumDensity, maximumDensity] = DIFFICULTIES.expert.densityRange;
+  const effectiveDensity = clamp(
+    density + (rng() * 2 - 1) * variability,
+    minimumDensity,
+    maximumDensity,
+  );
+  const exactCount = maxCharacters * effectiveDensity;
+  const lowerCount = Math.floor(exactCount);
+  const stochasticCount = lowerCount + (rng() < exactCount - lowerCount ? 1 : 0);
+  return clamp(stochasticCount, 4, maxCharacters);
 }
 
 function chooseRowsAndCols(rows, cols, count, forcedRows, forcedCols, rng) {
@@ -855,12 +895,21 @@ function makeUnaryClue(characterId, type, value, description, strength = 1, cate
   };
 }
 
-function makeRelationClue(characterId, type, otherId, description, strength = 0.5, category = 'relation') {
+function makeRelationClue(
+  characterId,
+  type,
+  otherId,
+  description,
+  strength = 0.5,
+  category = 'relation',
+  value = null,
+) {
   return {
-    id: clueId(characterId, type, otherId),
+    id: clueId(characterId, type, value == null ? otherId : `${otherId}:${JSON.stringify(value)}`),
     characterId,
     type,
     otherId,
+    ...(value == null ? {} : { value }),
     description,
     strength,
     category,
@@ -934,6 +983,16 @@ export function describeClue(puzzle, clue, locale = puzzle.locale) {
         distance: clue.value.distance,
         object: getObjectCopy(locale, clue.value.objectType).afterOf,
       });
+    case 'roomContainsObject':
+      return translate(locale, 'clues.roomContainsObject', {
+        ...parameters,
+        object: getObjectCopy(locale, clue.value).indefinite,
+      });
+    case 'distanceFromPerson':
+      return translate(locale, `clues.distanceFromPerson${clue.value === 1 ? 'One' : 'Many'}`, {
+        ...parameters,
+        distance: clue.value,
+      });
     case 'roomPosition':
       return translate(locale, `clues.roomPosition${clue.value[0].toUpperCase()}${clue.value.slice(1)}`, parameters);
     case 'aloneInRoom':
@@ -971,6 +1030,8 @@ function generateCluePool(puzzle, rng) {
       .map((cell) => cell.object),
   )];
   const roomOccupancy = new Map(puzzle.rooms.map((room) => [room.id, []]));
+  const roomObjectTypes = new Map(puzzle.rooms.map((room) => [room.id, new Set()]));
+  for (const object of puzzle.objects) roomObjectTypes.get(object.roomId)?.add(object.type);
   for (const character of puzzle.characters) {
     const cell = puzzle.cellByKey.get(placements[character.id]);
     roomOccupancy.get(cell.roomId).push(character.id);
@@ -1033,6 +1094,17 @@ function generateCluePool(puzzle, rng) {
       position === 'center' ? 0.48 : 0.35,
       'broad',
     ));
+
+    for (const objectType of roomObjectTypes.get(cell.roomId)) {
+      pool.push(makeUnaryClue(
+        character.id,
+        'roomContainsObject',
+        objectType,
+        '',
+        0.46,
+        'object',
+      ));
+    }
 
     for (const objectType of blockingObjectTypesPresent) {
       const distance = distanceFromObject(puzzle, cell, objectType);
@@ -1145,6 +1217,18 @@ function generateCluePool(puzzle, rng) {
           0.9,
         ));
       }
+      const personDistance = Math.abs(cell.row - otherCell.row) + Math.abs(cell.col - otherCell.col);
+      if (character.id < other.id && personDistance >= 2 && personDistance <= 4) {
+        pool.push(makeRelationClue(
+          character.id,
+          'distanceFromPerson',
+          other.id,
+          '',
+          0.58,
+          'relation',
+          personDistance,
+        ));
+      }
     }
   }
 
@@ -1170,6 +1254,9 @@ const CONSTRAINT_EVALUATORS = {
   distanceFromObject: ({ puzzle, clue, cell }) => (
     distanceFromObject(puzzle, cell, clue.value.objectType) === clue.value.distance
   ),
+  roomContainsObject: ({ puzzle, clue, cell }) => puzzle.objects.some((object) => (
+    object.roomId === cell.roomId && object.type === clue.value
+  )),
   roomPosition: ({ puzzle, clue, cell }) => roomPosition(puzzle, cell) === clue.value,
   sameRoom: ({ cell, otherCell }) => cell.roomId === otherCell.roomId,
   notSameRoom: ({ cell, otherCell }) => cell.roomId !== otherCell.roomId,
@@ -1178,6 +1265,9 @@ const CONSTRAINT_EVALUATORS = {
   westOf: ({ cell, otherCell }) => cell.col < otherCell.col,
   eastOf: ({ cell, otherCell }) => cell.col > otherCell.col,
   besidePerson: ({ puzzle, cell, otherCell }) => isBesideCell(puzzle, cell, otherCell),
+  distanceFromPerson: ({ cell, otherCell, clue }) => (
+    Math.abs(cell.row - otherCell.row) + Math.abs(cell.col - otherCell.col) === clue.value
+  ),
 };
 
 export function evaluateConstraint(puzzle, clue, placement, cell) {
@@ -1424,7 +1514,7 @@ function selectClues(puzzle, cluePool, difficulty, rng) {
     if (!clue || selectedIds.has(clue.id)) return false;
     if (CARDINAL_CLUE_TYPES.has(clue.type)) {
       if (cardinalPerCharacter.get(clue.characterId) >= 1) return false;
-      if (cardinalClueCount + 1 > Math.floor((selected.length + 1) * 0.2)) return false;
+      if (cardinalClueCount + 1 > Math.floor((selected.length + 1) * MAX_CARDINAL_CLUE_SHARE)) return false;
     }
     return clue.category !== 'exact'
       || (exactPerCharacter.get(clue.characterId) < 1 && exactClueCount < config.maxExactClues);
@@ -1563,7 +1653,7 @@ function selectClues(puzzle, cluePool, difficulty, rng) {
       checks += 1;
       const trial = selected.filter((item) => item.id !== clue.id);
       const trialCardinalCount = trial.filter((item) => CARDINAL_CLUE_TYPES.has(item.type)).length;
-      if (trialCardinalCount > Math.floor(trial.length * 0.2)) continue;
+      if (trialCardinalCount > Math.floor(trial.length * MAX_CARDINAL_CLUE_SHARE)) continue;
       const check = solvePuzzle(puzzle, { clues: trial, maxSolutions: 2, maxNodes: 90000 });
       if (!check.aborted && check.count === 1) {
         const index = selected.findIndex((item) => item.id === clue.id);
@@ -1667,7 +1757,7 @@ export function generatePuzzle(options = {}) {
     );
     const rng = createRng(generationKey);
     const caseType = selectCaseType(requestedCaseType, rng);
-    const characterCount = selectCharacterCount(rows, cols, density);
+    const characterCount = selectCharacterCount(rows, cols, density, difficulty, rng);
     const roomTarget = clamp(
       Math.round(Math.sqrt(rows * cols) * config.roomFactor),
       3,

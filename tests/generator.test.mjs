@@ -3,10 +3,13 @@ import {
   CASE_TYPES,
   CONSTRAINT_TYPES,
   DIFFICULTIES,
+  MAX_CARDINAL_CLUE_SHARE,
   OBJECT_PLACEMENT_RULES,
   OBJECT_TYPES,
+  createRng,
   createRandomSeed,
   generatePuzzle,
+  selectCharacterCount,
   serializePuzzle,
   solvePuzzle,
   validatePlayerState,
@@ -50,11 +53,24 @@ assert.deepEqual(
 );
 assert.ok(CONSTRAINT_TYPES.includes('distanceFromObject'), 'the constraint DSL must support material distance evidence');
 assert.ok(CONSTRAINT_TYPES.includes('roomPosition'), 'the constraint DSL must support positions inside rooms');
-assert.deepEqual(DIFFICULTIES.expert.densityRange, [0.55, 0.8]);
-assert.equal(DIFFICULTIES.expert.defaultDensity, 0.7);
+assert.ok(CONSTRAINT_TYPES.includes('distanceFromPerson'), 'the constraint DSL must support exact distance between people');
+assert.ok(CONSTRAINT_TYPES.includes('roomContainsObject'), 'the constraint DSL must support room-content evidence');
+assert.deepEqual(DIFFICULTIES.expert.densityRange, [0.55, 1]);
+assert.equal(DIFFICULTIES.expert.defaultDensity, 0.85);
 assert.ok(
-  OBJECT_TYPES.carpet.footprints.some((footprint) => footprint.length >= 4),
-  'carpets must define a genuinely multi-cell footprint',
+  OBJECT_TYPES.carpet.footprints.some((footprint) => footprint.length >= 9),
+  'large boards must support rugs covering at least nine cells',
+);
+
+const expertCounts = Array.from({ length: 96 }, (_, index) => (
+  selectCharacterCount(12, 12, DIFFICULTIES.expert.defaultDensity, 'expert', createRng(`EXPERT-DENSITY-${index}`))
+));
+assert.ok(expertCounts.includes(12), 'some expert seeds must fill every row and column');
+assert.ok(expertCounts.some((count) => count <= 10), 'large expert boards must sometimes leave at least two rows and columns empty');
+assert.equal(
+  selectCharacterCount(12, 12, 0.85, 'expert', createRng('EXPERT-DETERMINISTIC')),
+  selectCharacterCount(12, 12, 0.85, 'expert', createRng('EXPERT-DETERMINISTIC')),
+  'expert density variation must remain reproducible by seed',
 );
 
 const frenchCharacterProfiles = getCharacterNameProfiles('fr');
@@ -130,7 +146,7 @@ for (const seed of randomSeeds) {
 
 for (const options of scenarios) {
   const puzzle = generatePuzzle(options);
-  assert.equal(puzzle.version, 6, 'localized cases must use generator format version 6');
+  assert.equal(puzzle.version, 7, 'localized cases must use generator format version 7');
   assert.equal(puzzle.rows, options.rows);
   assert.equal(puzzle.cols, options.cols);
   assert.ok(puzzle.characters.length <= Math.min(options.rows, options.cols));
@@ -248,7 +264,10 @@ for (const options of scenarios) {
   const exactClueCount = puzzle.clues.filter((clue) => ['row', 'col'].includes(clue.type)).length;
   assert.ok(exactClueCount <= maxExactCluesByDifficulty[options.difficulty], `${options.difficulty} must limit exact coordinates`);
   const cardinalClues = puzzle.clues.filter((clue) => ['northOf', 'southOf', 'westOf', 'eastOf'].includes(clue.type));
-  assert.ok(cardinalClues.length <= Math.floor(puzzle.clues.length * 0.2), 'cardinal clues must not exceed 20% of a case');
+  assert.ok(
+    cardinalClues.length <= Math.floor(puzzle.clues.length * MAX_CARDINAL_CLUE_SHARE),
+    'cardinal clues must not exceed 12% of a case',
+  );
   assert.equal(
     new Set(cardinalClues.map((clue) => clue.characterId)).size,
     cardinalClues.length,
@@ -271,7 +290,7 @@ const besideObjectPuzzle = generatePuzzle({
   density: 1,
   difficulty: 'difficile',
   caseType: 'coPresence',
-  seed: 'BESIDE-0',
+  seed: 'BESIDE-1',
   locale: 'fr',
 });
 const besideObjectClue = besideObjectPuzzle.clues.find((clue) => (
@@ -286,6 +305,29 @@ assert.equal(
   1,
   'a beside-object clue may be the character’s only clue',
 );
+
+const largeRugPuzzle = generatePuzzle({
+  rows: 10,
+  cols: 10,
+  difficulty: 'moyen',
+  seed: 'LARGE-RUG-0',
+  locale: 'en',
+});
+assert.ok(
+  largeRugPuzzle.objects.some((object) => object.type === 'carpet' && object.footprint.length >= 9),
+  'large cases must place a large rug when a suitable room exists',
+);
+
+const clueVarietyPuzzle = generatePuzzle({
+  rows: 8,
+  cols: 8,
+  difficulty: 'difficile',
+  seed: 'CLUE-VARIETY-5',
+  locale: 'en',
+});
+const clueVarietyTypes = new Set(clueVarietyPuzzle.clues.map((clue) => clue.type));
+assert.ok(clueVarietyTypes.has('distanceFromPerson'), 'generated cases must use person-distance evidence');
+assert.ok(clueVarietyTypes.has('roomContainsObject'), 'generated cases must use room-content evidence');
 const besideCharacterCell = besideObjectPuzzle.cellByKey.get(
   besideObjectPuzzle.solution[besideObjectClue.characterId],
 );
@@ -366,12 +408,37 @@ const expertProfilePuzzle = generatePuzzle({
   locale: 'en',
 });
 assert.equal(expertProfilePuzzle.density, DIFFICULTIES.expert.defaultDensity);
-assert.ok(expertProfilePuzzle.characters.length < Math.min(expertProfilePuzzle.rows, expertProfilePuzzle.cols));
+assert.ok(expertProfilePuzzle.characters.length <= Math.min(expertProfilePuzzle.rows, expertProfilePuzzle.cols));
 const expertPositions = expertProfilePuzzle.characters.map((character) => (
   expertProfilePuzzle.cellByKey.get(expertProfilePuzzle.solution[character.id])
 ));
-assert.ok(new Set(expertPositions.map((cell) => cell.row)).size < expertProfilePuzzle.rows, 'expert cases must leave a row empty');
-assert.ok(new Set(expertPositions.map((cell) => cell.col)).size < expertProfilePuzzle.cols, 'expert cases must leave a column empty');
+assert.equal(
+  new Set(expertPositions.map((cell) => cell.row)).size,
+  expertProfilePuzzle.characters.length,
+  'expert character count must control the number of occupied rows',
+);
+assert.equal(
+  new Set(expertPositions.map((cell) => cell.col)).size,
+  expertProfilePuzzle.characters.length,
+  'expert character count must control the number of occupied columns',
+);
+
+const sparseLargeExpert = generatePuzzle({
+  rows: 10,
+  cols: 10,
+  difficulty: 'expert',
+  seed: 'EXPERT-LARGE-2',
+  locale: 'en',
+});
+const fullLargeExpert = generatePuzzle({
+  rows: 10,
+  cols: 10,
+  difficulty: 'expert',
+  seed: 'EXPERT-LARGE-3',
+  locale: 'en',
+});
+assert.ok(sparseLargeExpert.characters.length <= 8, 'a large expert case may leave at least two rows and columns empty');
+assert.equal(fullLargeExpert.characters.length, 10, 'expert cases must not always contain empty rows or columns');
 
 for (const [index, caseType] of Object.keys(CASE_TYPES).entries()) {
   const puzzle = generatePuzzle({
