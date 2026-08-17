@@ -792,7 +792,21 @@ function isAutomaticallyExcluded(cell) {
 
 function fitBoardToViewport() {
   if (!state.puzzle) return;
-  const width = Math.max(1, dom.boardScroll.clientWidth - 14);
+  const scrollStyle = getComputedStyle(dom.boardScroll);
+  const boardStyle = getComputedStyle(dom.board);
+  const horizontalPadding = [
+    scrollStyle.paddingLeft,
+    scrollStyle.paddingRight,
+    boardStyle.paddingLeft,
+    boardStyle.paddingRight,
+  ].reduce((total, value) => total + (Number.parseFloat(value) || 0), 0);
+  const verticalPadding = [
+    scrollStyle.paddingTop,
+    scrollStyle.paddingBottom,
+    boardStyle.paddingTop,
+    boardStyle.paddingBottom,
+  ].reduce((total, value) => total + (Number.parseFloat(value) || 0), 0);
+  const width = Math.max(1, dom.boardScroll.clientWidth - horizontalPadding);
   const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
   const compactReservedHeight = [
     dom.appHeader,
@@ -801,9 +815,10 @@ function fitBoardToViewport() {
     dom.boardScrollHint,
   ].reduce((total, element) => total + (element?.getBoundingClientRect().height ?? 0), 28);
   const height = Math.max(1, compactLayout.matches
-    ? viewportHeight - compactReservedHeight
-    : dom.boardScroll.clientHeight - 14);
-  const cellSize = Math.max(44, Math.min(
+    ? viewportHeight - compactReservedHeight - verticalPadding
+    : dom.boardScroll.clientHeight - verticalPadding);
+  const minimumCellSize = compactLayout.matches ? 44 : 22;
+  const cellSize = Math.max(minimumCellSize, Math.min(
     82,
     Math.floor(width / state.puzzle.cols),
     Math.floor(height / state.puzzle.rows),

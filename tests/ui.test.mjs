@@ -95,7 +95,9 @@ assert.match(files.app, /saveTheorySlot/, 'theory workspaces must use the valida
 assert.match(files.app, /ResizeObserver/, 'board fit must react to viewport and panel size changes');
 assert.match(files.app, /fitBoardToViewport/, 'board sizing must use available width and height');
 assert.doesNotMatch(files.app, /boardViewMode|setBoardViewMode/, 'manual board sizing state must not desynchronize visual layers');
-assert.match(files.app, /Math\.max\(44,/, 'interactive cells must keep a touch-friendly minimum size');
+assert.match(files.app, /compactLayout\.matches \? 44 : 22/, 'compact layouts must keep touch-friendly cells while desktop grids may shrink to fit');
+assert.match(files.app, /getComputedStyle\(dom\.boardScroll\)/, 'board fitting must account for the scroll container padding');
+assert.match(files.app, /getComputedStyle\(dom\.board\)/, 'board fitting must account for the grid inset');
 assert.match(files.app, /--layer-col/, 'board overlays must remain anchored to grid coordinates');
 assert.match(files.styles, /calc\(var\(--board-inset\) \+ var\(--layer-col\) \* var\(--cell-size\)\)/, 'board overlay geometry must follow the live cell size');
 assert.match(files.app, /visualViewport\?\.height/, 'compact board fitting must use the real mobile and tablet viewport height');
