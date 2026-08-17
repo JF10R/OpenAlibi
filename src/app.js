@@ -11,6 +11,8 @@ import {
   validatePlayerState,
 } from './core.js';
 import { createChallengeUrl, parseChallengeUrl } from './challenge.js';
+import { APP_FEATURES } from './feature-config.js';
+import { createFeatureHost } from './feature-host.js';
 import {
   cloneProgress,
   commitHistory,
@@ -45,6 +47,7 @@ const state = {
   focusedCellKey: null,
   history: null,
   boardViewMode: 'fit',
+  caseSolvedPublished: false,
 };
 
 const dom = {
@@ -103,6 +106,31 @@ const MOBILE_LAYOUT_QUERY = [
 ].join(', ');
 const mobileLayout = window.matchMedia(MOBILE_LAYOUT_QUERY);
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+const featureHost = createFeatureHost(APP_FEATURES, {
+  onError: (error, featureId = 'unknown') => console.error(`Feature ${featureId} failed.`, error),
+});
+
+function currentCaseSummary() {
+  if (!state.puzzle) return null;
+  return Object.freeze({
+    id: state.puzzle.id,
+    version: state.puzzle.version,
+    seed: state.puzzle.seed,
+    rows: state.puzzle.rows,
+    cols: state.puzzle.cols,
+    density: state.puzzle.density,
+    difficulty: state.puzzle.difficulty,
+    caseType: state.puzzle.requestedCaseType,
+  });
+}
+
+function publishFeatureEvent(type, detail = {}) {
+  featureHost.publish(type, { case: currentCaseSummary(), ...detail });
+}
+
+function getFeatureSnapshot() {
+  return Object.freeze({ locale: state.locale, case: currentCaseSummary() });
+}
 
 function scrollIntoView(element) {
   window.requestAnimationFrame(() => {
@@ -469,6 +497,7 @@ function applyLocale(locale, persist = true) {
     renderSuccessText();
   }
   renderStatus();
+  publishFeatureEvent('locale-changed', { locale: state.locale });
   if (!persist) return;
   try {
     localStorage.setItem(LOCALE_STORAGE_KEY, state.locale);
@@ -496,11 +525,13 @@ function generate(seed = createRandomSeed(), focusCase = false) {
       const restored = initializeProgress(state.puzzle);
       state.pendingRemovalKey = null;
       state.feedback = null;
+      state.caseSolvedPublished = false;
       state.focusedCellKey = state.puzzle.cells.find((cell) => cell.occupiable)?.key ?? null;
       setInteractionMode('place', false);
       render();
       persistDraft();
       setStatus(restored ? 'status.draftRestored' : 'status.generated', {}, 'success');
+      publishFeatureEvent('case-generated', { restored });
       if (mobileLayout.matches) dom.caseSettings.open = false;
       if (focusCase) scrollIntoView(dom.caseHeader);
     } catch (error) {
@@ -928,8 +959,19 @@ function checkAnswers() {
   renderHeader();
   renderSuspects();
   renderBoard();
+  publishFeatureEvent('case-checked', {
+    solved: result.solved,
+    complete: result.complete,
+    correctCount: result.correctCount,
+    total: result.total,
+    victimRoomValid: result.victimRoomValid,
+  });
 
   if (result.solved) {
+    if (!state.caseSolvedPublished) {
+      state.caseSolvedPublished = true;
+      publishFeatureEvent('case-solved');
+    }
     renderSuccessText();
     dom.success.showModal();
     setStatus('status.solved', {}, 'success');
@@ -962,6 +1004,7 @@ function clearBoard() {
   state.focusedCellKey = state.puzzle.cells.find((cell) => cell.occupiable)?.key ?? null;
   setInteractionMode('place', false);
   render();
+  publishFeatureEvent('case-cleared');
   setStatus('status.cleared');
 }
 
@@ -987,6 +1030,7 @@ function giveHint() {
   });
   renderSuspects();
   renderBoard();
+  publishFeatureEvent('hint-used', { characterId: character.id, hintType });
   setStatus('status.hint', { characterId: character.id, hintType }, 'warning');
 }
 
@@ -1000,6 +1044,7 @@ function revealSolution() {
     state.feedback = validatePlayerState(state.puzzle, state.placements);
   });
   render();
+  publishFeatureEvent('solution-revealed');
   const killer = state.puzzle.characters.find((character) => character.id === state.puzzle.killerId);
   setStatus('status.revealed', { characterId: killer.id }, 'warning');
 }
@@ -1091,6 +1136,11 @@ document.addEventListener('keydown', (event) => {
 });
 
 state.locale = getInitialLocale();
+featureHost.start({
+  getSnapshot: getFeatureSnapshot,
+  setStatus,
+  translate: (key, parameters = {}) => translate(state.locale, key, parameters),
+});
 dom.caseSettings.open = !mobileLayout.matches;
 applyTheme(document.documentElement.dataset.theme, false);
 applyLocale(state.locale, false);

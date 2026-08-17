@@ -7,6 +7,8 @@ const files = Object.fromEntries(await Promise.all([
   ['app', 'src/app.js'],
   ['core', 'src/core.js'],
   ['challenge', 'src/challenge.js'],
+  ['featureConfig', 'src/feature-config.js'],
+  ['featureHost', 'src/feature-host.js'],
   ['i18n', 'src/i18n.js'],
   ['styles', 'styles.css'],
   ['readme', 'README.md'],
@@ -36,6 +38,11 @@ assert.match(files.styles, /:root\[data-theme=['"]dark['"]\]/, 'a dark color the
 assert.match(files.app, /openalibi-theme/, 'the selected theme must be persisted');
 assert.match(files.app, /openalibi-locale/, 'the selected locale must be persisted');
 assert.match(files.app, /openalibi-current-draft/, 'the active case must be restored across sessions');
+assert.match(files.app, /createFeatureHost\(APP_FEATURES/, 'optional features must use the public host contract');
+assert.match(files.app, /publishFeatureEvent\('case-solved'/, 'case completion must expose a stable lifecycle event');
+assert.match(files.app, /publishFeatureEvent\('hint-used'/, 'assistance tracking must expose a stable lifecycle event');
+assert.match(files.app, /publishFeatureEvent\('solution-revealed'/, 'reveals must expose a stable lifecycle event');
+assert.doesNotMatch(files.featureConfig, /premium|leaderboard|achievement/i, 'the public feature configuration must remain premium-free');
 assert.match(files.challenge, /createChallengeUrl/, 'shared challenges must use a canonical serializer');
 assert.match(files.challenge, /parseChallengeUrl/, 'shared challenge settings must be validated before generation');
 assert.match(files.app, /serializeDraft/, 'progress persistence must use the validated draft serializer');

@@ -161,11 +161,14 @@ openalibi/
 │   ├── app.js                State, rendering, interactions, and locale switching
 │   ├── challenge.js          Canonical challenge links
 │   ├── core.js               Generator, constraints, solver, and validation
+│   ├── feature-config.js     Public optional-feature configuration
+│   ├── feature-host.js       Isolated lifecycle extension boundary
 │   ├── i18n.js               Message, room, object, title, and name catalogs
 │   └── progress.js           Draft serialization and immutable undo/redo history
 ├── tests/
 │   ├── generator.test.mjs    Generator and solver tests
 │   ├── challenge.test.mjs    Shared-case identity tests
+│   ├── features.test.mjs     Optional-feature isolation tests
 │   ├── progress.test.mjs     Persistence and history tests
 │   ├── i18n.test.mjs         Localization and cross-locale stability tests
 │   └── ui.test.mjs           Static interface contracts
@@ -173,6 +176,12 @@ openalibi/
 ```
 
 The domain core is independent of the DOM and runs in both modern browsers and Node.js.
+
+Optional builds register small `{ id, setup }` modules in `feature-config.js`. The setup
+contract exposes frozen services and event subscriptions without granting direct access to
+application state. Stable lifecycle events cover locale changes, case generation, checks,
+solves, hints, reveals, and resets. A failing feature is reported without interrupting the
+public game.
 
 ## Technology
 
