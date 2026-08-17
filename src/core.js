@@ -15,9 +15,12 @@ import {
   translate,
 } from './i18n.js';
 
-export const GENERATOR_VERSION = 9;
+export const GENERATOR_VERSION = 10;
 export const RANDOM_SEED_LENGTH = 10;
 export const MAX_CARDINAL_CLUE_SHARE = 0.12;
+export const MAX_CLUE_TYPE_SHARE = 0.4;
+export const MAX_DISTANCE_CLUE_SHARE = 0.25;
+export const MAX_PERSON_DISTANCE_CLUE_SHARE = 0.2;
 
 const RANDOM_SEED_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 
@@ -75,13 +78,14 @@ export const CASE_TYPES = {
 };
 
 export const CONSTRAINT_TYPES = [
-  'room', 'row', 'col', 'rowHalf', 'colHalf', 'onObject', 'besideObject',
+  'room', 'row', 'col', 'rowHalf', 'colHalf', 'onObject', 'onlyOnObject', 'besideObject',
   'notBesideObject', 'aloneInRoom', 'sameRoom', 'notSameRoom', 'northOf',
   'southOf', 'westOf', 'eastOf', 'besidePerson', 'distanceFromObject',
   'roomPosition', 'distanceFromPerson', 'roomContainsObject',
 ];
 
 const CARDINAL_CLUE_TYPES = new Set(['northOf', 'southOf', 'westOf', 'eastOf']);
+const DISTANCE_CLUE_TYPES = new Set(['distanceFromObject', 'distanceFromPerson']);
 
 const ROOM_TYPES = {
   large: ['livingRoom', 'diningRoom', 'library', 'gallery', 'workshop', 'meetingRoom', 'indoorGarden'],
@@ -894,6 +898,11 @@ export function describeClue(puzzle, clue, locale = puzzle.locale) {
         ...parameters,
         object: getObjectCopy(locale, clue.value).indefinite,
       });
+    case 'onlyOnObject':
+      return translate(locale, 'clues.onlyOnObject', {
+        ...parameters,
+        object: getObjectCopy(locale, clue.value).indefinite,
+      });
     case 'besideObject':
       return translate(locale, 'clues.besideObject', {
         ...parameters,
@@ -957,11 +966,13 @@ function generateCluePool(puzzle, rng) {
       .map((cell) => cell.object),
   )];
   const roomOccupancy = new Map(puzzle.rooms.map((room) => [room.id, []]));
+  const objectOccupancy = new Map();
   const roomObjectTypes = new Map(puzzle.rooms.map((room) => [room.id, new Set()]));
   for (const object of puzzle.objects) roomObjectTypes.get(object.roomId)?.add(object.type);
   for (const character of puzzle.characters) {
     const cell = puzzle.cellByKey.get(placements[character.id]);
     roomOccupancy.get(cell.roomId).push(character.id);
+    if (cell.object) objectOccupancy.set(cell.object, (objectOccupancy.get(cell.object) ?? 0) + 1);
   }
 
   for (const character of puzzle.characters) {
@@ -1010,6 +1021,16 @@ function generateCluePool(puzzle, rng) {
         0.95,
         'object',
       ));
+      if (objectOccupancy.get(cell.object) === 1) {
+        pool.push(makeUnaryClue(
+          character.id,
+          'onlyOnObject',
+          cell.object,
+          '',
+          0.82,
+          'object',
+        ));
+      }
     }
 
     const position = roomPosition(puzzle, cell);
@@ -1176,6 +1197,7 @@ const CONSTRAINT_EVALUATORS = {
     clue.value === 'left' ? cell.col < puzzle.cols / 2 : cell.col >= puzzle.cols / 2
   ),
   onObject: ({ clue, cell }) => cell.object === clue.value,
+  onlyOnObject: ({ clue, cell }) => cell.object === clue.value,
   besideObject: ({ puzzle, clue, cell }) => isBesideObject(puzzle, cell, clue.value),
   notBesideObject: ({ puzzle, clue, cell }) => !isBesideObject(puzzle, cell, clue.value),
   distanceFromObject: ({ puzzle, clue, cell }) => (
@@ -1226,6 +1248,11 @@ function fullClueMatches(puzzle, clue, placement) {
     return Object.entries(placement)
       .filter(([id]) => id !== clue.characterId)
       .every(([, key]) => puzzle.cellByKey.get(key).roomId !== cell.roomId);
+  }
+  if (clue.type === 'onlyOnObject') {
+    return cell.object === clue.value && Object.entries(placement)
+      .filter(([id]) => id !== clue.characterId)
+      .every(([, key]) => puzzle.cellByKey.get(key).object !== clue.value);
   }
   return partialClueMatches(puzzle, clue, placement, cell);
 }
@@ -1392,6 +1419,25 @@ function archetypeWeight(clue, caseType) {
   return 1;
 }
 
+function clueFamily(clue) {
+  if (clue.category === 'narrative') return 'narrative';
+  if (clue.category === 'object' || clue.type === 'notBesideObject') return 'object';
+  if (['room', 'roomPosition', 'aloneInRoom', 'sameRoom', 'notSameRoom'].includes(clue.type)) return 'room';
+  if (CARDINAL_CLUE_TYPES.has(clue.type) || ['besidePerson', 'distanceFromPerson'].includes(clue.type)) {
+    return 'person';
+  }
+  if (['row', 'col', 'rowHalf', 'colHalf'].includes(clue.type)) return 'coordinate';
+  return clue.category;
+}
+
+function clueTypeWeight(clue) {
+  if (DISTANCE_CLUE_TYPES.has(clue.type)) return 0.42;
+  if (['onObject', 'onlyOnObject', 'besideObject'].includes(clue.type)) return 1.45;
+  if (clue.type === 'roomContainsObject') return 1.2;
+  if (CARDINAL_CLUE_TYPES.has(clue.type)) return 1.12;
+  return 1;
+}
+
 function categoryWeight(clue, config, rng, caseType) {
   let weight = 1;
   if (clue.category === 'relation') weight *= 0.55 + config.relationBias * 2.5;
@@ -1399,7 +1445,7 @@ function categoryWeight(clue, config, rng, caseType) {
   if (clue.category === 'exact') weight *= 1.65 - config.relationBias;
   if (clue.category === 'direct') weight *= 1.25 - config.relationBias * 0.45;
   if (clue.category === 'broad') weight *= 0.7 + config.relationBias;
-  return weight * archetypeWeight(clue, caseType) * (0.75 + rng() * 0.5);
+  return weight * clueTypeWeight(clue) * archetypeWeight(clue, caseType) * (0.75 + rng() * 0.5);
 }
 
 function selectClues(puzzle, cluePool, difficulty, rng) {
@@ -1409,15 +1455,35 @@ function selectClues(puzzle, cluePool, difficulty, rng) {
   const perCharacter = new Map(puzzle.characters.map((character) => [character.id, 0]));
   const exactPerCharacter = new Map(puzzle.characters.map((character) => [character.id, 0]));
   const cardinalPerCharacter = new Map(puzzle.characters.map((character) => [character.id, 0]));
+  const distancePerCharacter = new Map(puzzle.characters.map((character) => [character.id, 0]));
   const occupiable = puzzle.cells.filter((cell) => cell.occupiable);
   let exactClueCount = 0;
   let cardinalClueCount = 0;
+  let distanceClueCount = 0;
+  let personDistanceClueCount = 0;
+
+  function evidenceCountAfter(clue) {
+    return selected.filter((item) => item.category !== 'narrative').length
+      + (clue.category === 'narrative' ? 0 : 1);
+  }
 
   function canAdd(clue) {
     if (!clue || selectedIds.has(clue.id)) return false;
+    if (clue.category !== 'narrative') {
+      const sameTypeCount = selected.filter((item) => item.type === clue.type).length;
+      const maxSameType = Math.max(1, Math.floor(evidenceCountAfter(clue) * MAX_CLUE_TYPE_SHARE));
+      if (sameTypeCount + 1 > maxSameType) return false;
+    }
     if (CARDINAL_CLUE_TYPES.has(clue.type)) {
       if (cardinalPerCharacter.get(clue.characterId) >= 1) return false;
-      if (cardinalClueCount + 1 > Math.floor((selected.length + 1) * MAX_CARDINAL_CLUE_SHARE)) return false;
+      if (cardinalClueCount + 1 > Math.floor(evidenceCountAfter(clue) * MAX_CARDINAL_CLUE_SHARE)) return false;
+    }
+    if (DISTANCE_CLUE_TYPES.has(clue.type)) {
+      if (distancePerCharacter.get(clue.characterId) >= 1) return false;
+      if (distanceClueCount + 1 > Math.floor(evidenceCountAfter(clue) * MAX_DISTANCE_CLUE_SHARE)) return false;
+    }
+    if (clue.type === 'distanceFromPerson') {
+      if (personDistanceClueCount + 1 > Math.floor(evidenceCountAfter(clue) * MAX_PERSON_DISTANCE_CLUE_SHARE)) return false;
     }
     return clue.category !== 'exact'
       || (exactPerCharacter.get(clue.characterId) < 1 && exactClueCount < config.maxExactClues);
@@ -1436,7 +1502,20 @@ function selectClues(puzzle, cluePool, difficulty, rng) {
       cardinalPerCharacter.set(clue.characterId, cardinalPerCharacter.get(clue.characterId) + 1);
       cardinalClueCount += 1;
     }
+    if (DISTANCE_CLUE_TYPES.has(clue.type)) {
+      distancePerCharacter.set(clue.characterId, distancePerCharacter.get(clue.characterId) + 1);
+      distanceClueCount += 1;
+    }
+    if (clue.type === 'distanceFromPerson') {
+      personDistanceClueCount += 1;
+    }
     return true;
+  }
+
+  function diversityWeight(clue) {
+    const characterClues = selected.filter((item) => item.characterId === clue.characterId);
+    if (!characterClues.length) return 1;
+    return characterClues.some((item) => clueFamily(item) === clueFamily(clue)) ? 0.46 : 1.4;
   }
 
   function localDomainSize(characterId, extraClue = null) {
@@ -1454,7 +1533,9 @@ function selectClues(puzzle, cluePool, difficulty, rng) {
       expert: { exact: 0.01, direct: 0.62, object: 1.15, broad: 1.55, relation: 2.0, negative: 1.5 },
     }[difficulty];
     return (weights[clue.category] ?? 0.5)
+      * clueTypeWeight(clue)
       * archetypeWeight(clue, puzzle.caseType)
+      * diversityWeight(clue)
       * (0.65 + clue.strength)
       * (0.85 + rng() * 0.3);
   }
@@ -1462,16 +1543,11 @@ function selectClues(puzzle, cluePool, difficulty, rng) {
   // Every character gets a clue card. Easier levels begin with denser, more direct evidence.
   const initialCount = difficulty === 'facile' ? 2 : 1;
   for (const character of puzzle.characters) {
-    const candidates = cluePool
-      .filter((clue) => clue.characterId === character.id)
-      .filter(canAdd)
-      .map((clue) => ({ clue, score: initialScore(clue) }))
-      .sort((a, b) => b.score - a.score);
-
     for (let i = 0; i < initialCount; i += 1) {
-      const chosen = (difficulty === 'expert' && !character.isVictim
-        ? candidates.find(({ clue }) => clue.type === 'room' && canAdd(clue))
-        : candidates.find(({ clue }) => canAdd(clue)))?.clue;
+      const chosen = cluePool
+        .filter((clue) => clue.characterId === character.id && canAdd(clue))
+        .map((clue) => ({ clue, score: initialScore(clue) }))
+        .sort((a, b) => b.score - a.score)[0]?.clue;
       add(chosen);
     }
   }
@@ -1501,6 +1577,8 @@ function selectClues(puzzle, cluePool, difficulty, rng) {
     const ranked = candidates.map((clue) => {
       const categoryProfile = categoryWeight(clue, config, rng, puzzle.caseType);
       const countPenalty = 1 / (1 + perCharacter.get(clue.characterId) * 1.25);
+      const typeRepeatCount = selected.filter((item) => item.type === clue.type).length;
+      const typeRepeatPenalty = 1 / (1 + typeRepeatCount * 0.55);
       const exactBase = { facile: 1.5, moyen: 0.42, difficile: 0.07, expert: 0.02 }[difficulty];
       const exactEscalation = clue.category === 'exact' ? exactBase + phase * phase * 2.2 : 1;
       const secondExactPenalty = clue.category === 'exact' && exactPerCharacter.get(clue.characterId) >= 1
@@ -1519,7 +1597,8 @@ function selectClues(puzzle, cluePool, difficulty, rng) {
       return {
         clue,
         score: (alternativeBonus + abortedBoost + localGain * 3.5 + clue.strength * 0.35 + 0.15)
-          * categoryProfile * countPenalty * (result.aborted && clue.category === 'exact' ? 3.5 : exactEscalation) * secondExactPenalty,
+          * categoryProfile * countPenalty * diversityWeight(clue) * typeRepeatPenalty
+          * (result.aborted && clue.category === 'exact' ? 3.5 : exactEscalation) * secondExactPenalty,
       };
     }).sort((a, b) => b.score - a.score);
 
@@ -1558,8 +1637,21 @@ function selectClues(puzzle, cluePool, difficulty, rng) {
       if (checks >= 14 || perCharacter.get(clue.characterId) <= 1) continue;
       checks += 1;
       const trial = selected.filter((item) => item.id !== clue.id);
+      const trialEvidenceCount = trial.filter((item) => item.category !== 'narrative').length;
+      const trialTypeCounts = new Map();
+      for (const item of trial) {
+        if (item.category !== 'narrative') {
+          trialTypeCounts.set(item.type, (trialTypeCounts.get(item.type) ?? 0) + 1);
+        }
+      }
+      const maxTrialTypeCount = Math.max(1, Math.floor(trialEvidenceCount * MAX_CLUE_TYPE_SHARE));
+      if ([...trialTypeCounts.values()].some((count) => count > maxTrialTypeCount)) continue;
       const trialCardinalCount = trial.filter((item) => CARDINAL_CLUE_TYPES.has(item.type)).length;
-      if (trialCardinalCount > Math.floor(trial.length * MAX_CARDINAL_CLUE_SHARE)) continue;
+      if (trialCardinalCount > Math.floor(trialEvidenceCount * MAX_CARDINAL_CLUE_SHARE)) continue;
+      const trialDistanceCount = trial.filter((item) => DISTANCE_CLUE_TYPES.has(item.type)).length;
+      if (trialDistanceCount > Math.floor(trialEvidenceCount * MAX_DISTANCE_CLUE_SHARE)) continue;
+      const trialPersonDistanceCount = trial.filter((item) => item.type === 'distanceFromPerson').length;
+      if (trialPersonDistanceCount > Math.floor(trialEvidenceCount * MAX_PERSON_DISTANCE_CLUE_SHARE)) continue;
       const check = solvePuzzle(puzzle, { clues: trial, maxSolutions: 2, maxNodes: 90000 });
       if (!check.aborted && check.count === 1) {
         const index = selected.findIndex((item) => item.id === clue.id);
@@ -1573,6 +1665,13 @@ function selectClues(puzzle, cluePool, difficulty, rng) {
         if (CARDINAL_CLUE_TYPES.has(clue.type)) {
           cardinalPerCharacter.set(clue.characterId, cardinalPerCharacter.get(clue.characterId) - 1);
           cardinalClueCount -= 1;
+        }
+        if (DISTANCE_CLUE_TYPES.has(clue.type)) {
+          distancePerCharacter.set(clue.characterId, distancePerCharacter.get(clue.characterId) - 1);
+          distanceClueCount -= 1;
+        }
+        if (clue.type === 'distanceFromPerson') {
+          personDistanceClueCount -= 1;
         }
       }
     }

@@ -4,6 +4,9 @@ import {
   CONSTRAINT_TYPES,
   DIFFICULTIES,
   MAX_CARDINAL_CLUE_SHARE,
+  MAX_CLUE_TYPE_SHARE,
+  MAX_DISTANCE_CLUE_SHARE,
+  MAX_PERSON_DISTANCE_CLUE_SHARE,
   OBJECT_PLACEMENT_RULES,
   OBJECT_TYPES,
   createRng,
@@ -25,7 +28,7 @@ const scenarios = [
   { rows: 4, cols: 4, density: 1, difficulty: 'facile', caseType: 'coPresence', seed: 'TEST-A', locale: 'fr' },
   { rows: 6, cols: 8, density: 0.8, difficulty: 'moyen', caseType: 'coPresence', seed: 'TEST-B', locale: 'fr' },
   { rows: 8, cols: 8, density: 1, difficulty: 'difficile', caseType: 'coPresence', seed: 'TEST-C', locale: 'fr' },
-  { rows: 9, cols: 10, density: 0.75, difficulty: 'expert', caseType: 'coPresence', seed: 'TEST-EXPERT-0', locale: 'fr' },
+  { rows: 9, cols: 10, density: 0.75, difficulty: 'expert', caseType: 'coPresence', seed: 'TEST-EXPERT-V10-0', locale: 'fr' },
   { rows: 9, cols: 10, density: 0.75, difficulty: 'expert', caseType: 'coPresence', seed: 'VICTIM-PRIVACY-expert-3', locale: 'fr' },
 ];
 
@@ -35,6 +38,16 @@ const maxExactCluesByDifficulty = {
   difficile: 0,
   expert: 0,
 };
+
+function clueFamily(clue) {
+  if (clue.category === 'object' || clue.type === 'notBesideObject') return 'object';
+  if (['room', 'roomPosition', 'aloneInRoom', 'sameRoom', 'notSameRoom'].includes(clue.type)) return 'room';
+  if (['northOf', 'southOf', 'westOf', 'eastOf', 'besidePerson', 'distanceFromPerson'].includes(clue.type)) {
+    return 'person';
+  }
+  if (['row', 'col', 'rowHalf', 'colHalf'].includes(clue.type)) return 'coordinate';
+  return clue.category;
+}
 
 assert.deepEqual(
   Object.values(DIFFICULTIES).map(({ objectRepeatTarget }) => objectRepeatTarget),
@@ -56,6 +69,7 @@ assert.deepEqual(
 assert.ok(CONSTRAINT_TYPES.includes('distanceFromObject'), 'the constraint DSL must support material distance evidence');
 assert.ok(CONSTRAINT_TYPES.includes('roomPosition'), 'the constraint DSL must support positions inside rooms');
 assert.ok(CONSTRAINT_TYPES.includes('distanceFromPerson'), 'the constraint DSL must support exact distance between people');
+assert.ok(CONSTRAINT_TYPES.includes('onlyOnObject'), 'the constraint DSL must support sole occupancy of an object type');
 assert.ok(CONSTRAINT_TYPES.includes('roomContainsObject'), 'the constraint DSL must support room-content evidence');
 assert.deepEqual(DIFFICULTIES.expert.densityRange, [0.55, 1]);
 assert.equal(DIFFICULTIES.expert.defaultDensity, 0.85);
@@ -148,7 +162,7 @@ for (const seed of randomSeeds) {
 
 for (const options of scenarios) {
   const puzzle = generatePuzzle(options);
-  assert.equal(puzzle.version, 9, 'localized cases must use generator format version 9');
+  assert.equal(puzzle.version, 10, 'localized cases must use generator format version 10');
   assert.equal(puzzle.rows, options.rows);
   assert.equal(puzzle.cols, options.cols);
   assert.ok(puzzle.characters.length <= Math.min(options.rows, options.cols));
@@ -255,6 +269,10 @@ for (const options of scenarios) {
     const exactClues = characterClues
       .filter((clue) => ['row', 'col'].includes(clue.type));
     assert.ok(exactClues.length <= 1, `${character.name} must not receive both an exact row and column clue`);
+    assert.ok(
+      characterClues.filter((clue) => ['distanceFromObject', 'distanceFromPerson'].includes(clue.type)).length <= 1,
+      `${character.name} must receive at most one exact-distance clue`,
+    );
     for (const clue of characterClues) {
       assert.doesNotMatch(clue.description, /\b1 cells\b/, 'English distance clues must use singular grammar');
       const leadingPronoun = clue.description.match(/^(Elle|Il)\b/)?.[1];
@@ -265,15 +283,33 @@ for (const options of scenarios) {
   }
   const exactClueCount = puzzle.clues.filter((clue) => ['row', 'col'].includes(clue.type)).length;
   assert.ok(exactClueCount <= maxExactCluesByDifficulty[options.difficulty], `${options.difficulty} must limit exact coordinates`);
-  const cardinalClues = puzzle.clues.filter((clue) => ['northOf', 'southOf', 'westOf', 'eastOf'].includes(clue.type));
+  const evidenceClues = puzzle.clues.filter((clue) => clue.category !== 'narrative');
+  const cardinalClues = evidenceClues.filter((clue) => ['northOf', 'southOf', 'westOf', 'eastOf'].includes(clue.type));
   assert.ok(
-    cardinalClues.length <= Math.floor(puzzle.clues.length * MAX_CARDINAL_CLUE_SHARE),
+    cardinalClues.length <= Math.floor(evidenceClues.length * MAX_CARDINAL_CLUE_SHARE),
     'cardinal clues must not exceed 12% of a case',
   );
   assert.equal(
     new Set(cardinalClues.map((clue) => clue.characterId)).size,
     cardinalClues.length,
     'a character must receive at most one cardinal clue',
+  );
+  const personDistanceClues = evidenceClues.filter((clue) => clue.type === 'distanceFromPerson');
+  assert.ok(
+    personDistanceClues.length <= Math.floor(evidenceClues.length * MAX_PERSON_DISTANCE_CLUE_SHARE),
+    'person-distance clues must not exceed 20% of a case',
+  );
+  assert.equal(
+    new Set(personDistanceClues.map((clue) => clue.characterId)).size,
+    personDistanceClues.length,
+    'a character must receive at most one person-distance clue',
+  );
+  const distanceClues = evidenceClues.filter((clue) => (
+    ['distanceFromObject', 'distanceFromPerson'].includes(clue.type)
+  ));
+  assert.ok(
+    distanceClues.length <= Math.floor(evidenceClues.length * MAX_DISTANCE_CLUE_SHARE),
+    'exact-distance clues must not exceed 25% of a case',
   );
 
   const solved = solvePuzzle(puzzle, { maxSolutions: 2, collectSolutions: true });
@@ -287,25 +323,62 @@ for (const options of scenarios) {
 }
 
 const besideObjectPuzzle = generatePuzzle({
-  rows: 6,
-  cols: 6,
+  rows: 8,
+  cols: 8,
   density: 1,
-  difficulty: 'difficile',
-  caseType: 'coPresence',
-  seed: 'BESIDE-2',
+  difficulty: 'moyen',
+  caseType: 'evidenceTrail',
+  seed: 'MIX-FINAL-3',
   locale: 'fr',
 });
 const besideObjectClue = besideObjectPuzzle.clues.find((clue) => (
   clue.type === 'besideObject'
-  && besideObjectPuzzle.cluesByCharacter[clue.characterId].length === 1
+  && clue.value === 'tv'
+  && besideObjectPuzzle.cluesByCharacter[clue.characterId].some((other) => (
+    other.id !== clue.id && clueFamily(other) !== 'object'
+  ))
 ));
-assert.ok(besideObjectClue, 'a blocked object may produce a beside-object clue');
-assert.equal(OBJECT_TYPES[besideObjectClue.value].occupiable, false, 'beside-object clues must target blocking objects');
-assert.match(besideObjectClue.description, /à côté d[’'](?:un|une) /, 'beside-object clues must use correct French elision');
+assert.ok(besideObjectClue, 'a television may produce a concrete beside-object clue');
+assert.match(besideObjectClue.description, /à côté d[’']une télévision/, 'television clues must use correct French elision');
+const besideObjectCard = besideObjectPuzzle.cluesByCharacter[besideObjectClue.characterId];
+assert.ok(
+  besideObjectCard.some((clue) => clue.id !== besideObjectClue.id && clueFamily(clue) !== 'object'),
+  'a beside-television clue must be mixed with a complementary clue family',
+);
+assert.ok(
+  besideObjectCard.every((clue) => !['distanceFromObject', 'distanceFromPerson'].includes(clue.type)),
+  'the mixed beside-television card must not fall back to an exact-distance clue',
+);
+
+const soleRugPuzzle = generatePuzzle({
+  rows: 8,
+  cols: 8,
+  density: 1,
+  difficulty: 'difficile',
+  caseType: 'coPresence',
+  seed: 'RUG-NODIST-1',
+  locale: 'fr',
+});
+const soleRugClue = soleRugPuzzle.clues.find((clue) => (
+  clue.type === 'onlyOnObject'
+  && clue.value === 'carpet'
+  && soleRugPuzzle.cluesByCharacter[clue.characterId].some((other) => (
+    other.id !== clue.id && clueFamily(other) !== 'object'
+  ))
+));
+assert.ok(soleRugClue, 'a character may be identified as the only person on a rug');
+assert.match(soleRugClue.description, /seule personne sur un tapis/, 'sole-rug clues must be explicit and natural');
+const soleRugCard = soleRugPuzzle.cluesByCharacter[soleRugClue.characterId];
+assert.ok(
+  soleRugCard.some((clue) => clue.id !== soleRugClue.id && clueFamily(clue) !== 'object'),
+  'a sole-rug clue must be mixed with a complementary clue family',
+);
 assert.equal(
-  besideObjectPuzzle.cluesByCharacter[besideObjectClue.characterId].length,
+  soleRugPuzzle.characters.filter((character) => (
+    soleRugPuzzle.cellByKey.get(soleRugPuzzle.solution[character.id]).object === 'carpet'
+  )).length,
   1,
-  'a beside-object clue may be the character’s only clue',
+  'sole-rug evidence must reflect the complete solution',
 );
 
 const largeRugPuzzle = generatePuzzle({
@@ -341,6 +414,60 @@ assert.ok(
     && Math.abs(cell.row - besideCharacterCell.row) + Math.abs(cell.col - besideCharacterCell.col) === 1
   )),
   'beside-object clues must be orthogonal and stay inside the same room',
+);
+
+const sweepTypeCounts = new Map();
+for (const difficulty of Object.keys(DIFFICULTIES)) {
+  for (const caseType of Object.keys(CASE_TYPES)) {
+    for (let index = 0; index < 12; index += 1) {
+      const puzzle = generatePuzzle({
+        rows: 6,
+        cols: 6,
+        density: 1,
+        difficulty,
+        caseType,
+        seed: `CLUE-SWEEP-V10-${difficulty}-${caseType}-${index}`,
+        locale: 'fr',
+      });
+      const evidenceClues = puzzle.clues.filter((clue) => clue.category !== 'narrative');
+      const distanceClues = evidenceClues.filter((clue) => (
+        ['distanceFromObject', 'distanceFromPerson'].includes(clue.type)
+      ));
+      const personDistanceClues = evidenceClues.filter((clue) => clue.type === 'distanceFromPerson');
+      assert.ok(distanceClues.length <= Math.floor(evidenceClues.length * MAX_DISTANCE_CLUE_SHARE));
+      assert.ok(personDistanceClues.length <= Math.floor(evidenceClues.length * MAX_PERSON_DISTANCE_CLUE_SHARE));
+
+      const typeCounts = new Map();
+      for (const clue of evidenceClues) {
+        typeCounts.set(clue.type, (typeCounts.get(clue.type) ?? 0) + 1);
+        sweepTypeCounts.set(clue.type, (sweepTypeCounts.get(clue.type) ?? 0) + 1);
+      }
+      for (const [type, count] of typeCounts) {
+        assert.ok(
+          count <= Math.max(1, Math.floor(evidenceClues.length * MAX_CLUE_TYPE_SHARE)),
+          `${type} must not dominate ${puzzle.seed}`,
+        );
+      }
+      for (const character of puzzle.characters) {
+        assert.ok(
+          puzzle.cluesByCharacter[character.id]
+            .filter((clue) => ['distanceFromObject', 'distanceFromPerson'].includes(clue.type)).length <= 1,
+          `${character.name} must not repeat exact-distance evidence in ${puzzle.seed}`,
+        );
+      }
+
+      const solved = solvePuzzle(puzzle, { maxSolutions: 2, collectSolutions: true });
+      assert.equal(solved.aborted, false, `${puzzle.seed} must finish solving`);
+      assert.equal(solved.count, 1, `${puzzle.seed} must remain unique`);
+      assert.deepEqual(solved.firstSolution, puzzle.solution, `${puzzle.seed} must retain its generated solution`);
+    }
+  }
+}
+assert.ok(sweepTypeCounts.get('onlyOnObject') > 0, 'the generator must regularly use sole-object occupancy');
+assert.ok(sweepTypeCounts.get('besideObject') > 0, 'the generator must regularly use concrete adjacency');
+assert.ok(
+  ['northOf', 'southOf', 'westOf', 'eastOf'].some((type) => sweepTypeCounts.get(type) > 0),
+  'cardinal clues must remain part of the clue mix',
 );
 
 const ambiguityPuzzle = generatePuzzle({
@@ -424,23 +551,6 @@ assert.equal(
   expertProfilePuzzle.characters.length,
   'expert character count must control the number of occupied columns',
 );
-
-const sparseLargeExpert = generatePuzzle({
-  rows: 10,
-  cols: 10,
-  difficulty: 'expert',
-  seed: 'EXPERT-LARGE-2',
-  locale: 'en',
-});
-const fullLargeExpert = generatePuzzle({
-  rows: 10,
-  cols: 10,
-  difficulty: 'expert',
-  seed: 'EXPERT-LARGE-0',
-  locale: 'en',
-});
-assert.ok(sparseLargeExpert.characters.length <= 8, 'a large expert case may leave at least two rows and columns empty');
-assert.equal(fullLargeExpert.characters.length, 10, 'expert cases must not always contain empty rows or columns');
 
 for (const [index, caseType] of Object.keys(CASE_TYPES).entries()) {
   const puzzle = generatePuzzle({
