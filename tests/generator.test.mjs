@@ -9,6 +9,7 @@ import {
   createRng,
   createRandomSeed,
   generatePuzzle,
+  getKillerFromPlacement,
   localizePuzzle,
   selectCharacterCount,
   serializePuzzle,
@@ -147,7 +148,7 @@ for (const seed of randomSeeds) {
 
 for (const options of scenarios) {
   const puzzle = generatePuzzle(options);
-  assert.equal(puzzle.version, 8, 'localized cases must use generator format version 8');
+  assert.equal(puzzle.version, 9, 'localized cases must use generator format version 9');
   assert.equal(puzzle.rows, options.rows);
   assert.equal(puzzle.cols, options.cols);
   assert.ok(puzzle.characters.length <= Math.min(options.rows, options.cols));
@@ -223,10 +224,10 @@ for (const options of scenarios) {
   assert.deepEqual(
     puzzle.cluesByCharacter[victim.id].map(({ type, description }) => ({ type, description })),
     [{
-      type: 'victimWithKiller',
-      description: 'La victime était seule avec le meurtrier.',
+      type: 'victimNoTestimony',
+      description: 'La victime ne fournit aucun témoignage.',
     }],
-    'the victim must receive only the neutral murderer clue',
+    'the victim must receive no positional or culprit evidence',
   );
   for (const room of puzzle.rooms) {
     assert.equal(
@@ -291,7 +292,7 @@ const besideObjectPuzzle = generatePuzzle({
   density: 1,
   difficulty: 'difficile',
   caseType: 'coPresence',
-  seed: 'BESIDE-1',
+  seed: 'BESIDE-2',
   locale: 'fr',
 });
 const besideObjectClue = besideObjectPuzzle.clues.find((clue) => (
@@ -323,7 +324,7 @@ const clueVarietyPuzzle = generatePuzzle({
   rows: 8,
   cols: 8,
   difficulty: 'difficile',
-  seed: 'CLUE-VARIETY-9',
+  seed: 'CLUE-VARIETY-0',
   locale: 'en',
 });
 const clueVarietyTypes = new Set(clueVarietyPuzzle.clues.map((clue) => clue.type));
@@ -394,10 +395,10 @@ assert.equal(
 assert.deepEqual(
   ambiguityPuzzle.cluesByCharacter[ambiguityVictim.id].map(({ type, description }) => ({ type, description })),
   [{
-    type: 'victimWithKiller',
-    description: 'La victime était seule avec le meurtrier.',
+    type: 'victimNoTestimony',
+    description: 'La victime ne fournit aucun témoignage.',
   }],
-  'Valérie must receive only the neutral murderer clue',
+  'Valérie must receive no positional or culprit evidence',
 );
 
 const expertProfilePuzzle = generatePuzzle({
@@ -435,7 +436,7 @@ const fullLargeExpert = generatePuzzle({
   rows: 10,
   cols: 10,
   difficulty: 'expert',
-  seed: 'EXPERT-LARGE-4',
+  seed: 'EXPERT-LARGE-0',
   locale: 'en',
 });
 assert.ok(sparseLargeExpert.characters.length <= 8, 'a large expert case may leave at least two rows and columns empty');
@@ -454,11 +455,7 @@ for (const [index, caseType] of Object.keys(CASE_TYPES).entries()) {
   assert.ok(puzzle.clues.every((clue) => clue.description.length > 0));
   assert.ok(puzzle.clues.every((clue) => !/\b1 cells\b/.test(clue.description)));
   assert.ok(puzzle.caseRule && puzzle.caseRule.type === caseType, `${caseType} must serialize its culpability rule`);
-  assert.equal(
-    'victimCellKey' in puzzle.caseRule,
-    false,
-    `${caseType} must not encode the victim's exact cell as evidence`,
-  );
+  assert.deepEqual(Object.keys(puzzle.caseRule), ['type'], `${caseType} must not encode culprit-identifying evidence`);
   assert.equal(puzzle.cluesByCharacter[puzzle.victimId][0].type, CASE_TYPES[caseType].narrativeClue);
   for (const locale of ['en', 'fr', 'es']) {
     localizePuzzle(puzzle, locale);
@@ -468,11 +465,21 @@ for (const [index, caseType] of Object.keys(CASE_TYPES).entries()) {
       /\b\d{1,2}[.,]\d{1,2}\b/,
       `${caseType} must not reveal the victim's coordinates in ${locale}`,
     );
+    assert.doesNotMatch(
+      puzzle.clues.map((clue) => clue.description).join(' '),
+      /\b(murderer|killer|meurtrier|assassin|asesino)\b/i,
+      `${caseType} clues must not identify or describe the murderer in ${locale}`,
+    );
   }
   const solved = solvePuzzle(puzzle, { maxSolutions: 2, collectSolutions: true });
   assert.equal(solved.count, 1, `${caseType} must have one spatial solution`);
   const validation = validatePlayerState(puzzle, puzzle.solution);
-  assert.equal(validation.inferredKillerId, puzzle.killerId, `${caseType} must infer its killer from its own rule`);
+  assert.equal(
+    getKillerFromPlacement({ ...puzzle, caseRule: { type: caseType } }, puzzle.solution),
+    puzzle.killerId,
+    `${caseType} must infer the murderer only as the victim's room companion`,
+  );
+  assert.equal(validation.inferredKillerId, puzzle.killerId, `${caseType} must infer its killer from the victim room`);
   assert.equal(validation.caseRuleValid, true);
   assert.equal(validation.solved, true);
 }

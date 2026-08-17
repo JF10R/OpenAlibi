@@ -91,9 +91,9 @@ assert.notDeepEqual(
 );
 
 const victimClues = {
-  en: 'The victim was alone with the murderer.',
-  fr: 'La victime était seule avec le meurtrier.',
-  es: 'La víctima estaba a solas con el asesino.',
+  en: 'The victim provides no testimony.',
+  fr: 'La victime ne fournit aucun témoignage.',
+  es: 'La víctima no aporta ningún testimonio.',
 };
 for (const locale of SUPPORTED_LOCALES) {
   const puzzle = puzzles[locale];
