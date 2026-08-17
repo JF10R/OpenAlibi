@@ -1,0 +1,173 @@
+.premium-case-timer {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 4px 8px;
+  color: var(--ink);
+  background: var(--ghost-background);
+  border: 1px solid var(--ghost-border);
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.premium-success-summary {
+  display: grid;
+  gap: 6px;
+  margin-block: 12px;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.premium-success-summary p { margin: 0; }
+.premium-unlock-summary { color: var(--success); font-weight: 800; }
+
+.premium-dialog {
+  width: min(780px, calc(100% - 28px));
+  text-align: left;
+}
+
+.premium-dialog-header { align-items: flex-start; }
+.premium-dialog-header h2 { margin: 0; }
+.premium-intro { max-width: 64ch; margin: 6px 0 0; color: var(--muted); line-height: 1.45; }
+.premium-content { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 18px; }
+
+.premium-card {
+  min-width: 0;
+  padding: 16px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+.premium-card h3,
+.premium-card h4 { margin: 0 0 12px; }
+.premium-card h4 { margin-top: 16px; font-size: 0.86rem; }
+.premium-profile-card,
+.premium-network-card { grid-column: 1 / -1; }
+
+.premium-profile-form {
+  display: grid;
+  grid-template-columns: auto minmax(160px, 1fr) minmax(160px, 1fr) auto;
+  align-items: end;
+  gap: 12px;
+}
+
+.premium-avatar {
+  --premium-avatar-hue: 280;
+  width: 48px;
+  height: 48px;
+  align-self: center;
+  background:
+    radial-gradient(circle at 50% 34%, #fff 0 12%, transparent 13%),
+    radial-gradient(circle at 50% 105%, #fff 0 34%, transparent 35%),
+    hsl(var(--premium-avatar-hue) 58% 44%);
+  border: 2px solid var(--control-border);
+  border-radius: 50%;
+}
+
+.premium-field { display: grid; gap: 6px; color: var(--muted); font-size: 0.76rem; font-weight: 800; }
+.premium-field input,
+.premium-field select { color: var(--ink); font-size: 0.9rem; }
+.premium-field output { color: var(--muted); font-weight: 700; }
+.premium-inline-status { grid-column: 2 / -1; min-height: 1.3em; margin: 0; color: var(--success); font-size: 0.8rem; }
+
+.premium-timer-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+  font-weight: 800;
+}
+
+.premium-timer-option input { width: 20px; min-height: 20px; }
+.premium-help { margin: 6px 0 0; color: var(--muted); font-size: 0.8rem; line-height: 1.45; }
+.premium-summary-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 0; }
+
+.premium-metric {
+  padding: 10px;
+  background: var(--control-background);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.premium-metric dt { color: var(--muted); font-size: 0.68rem; font-weight: 800; }
+.premium-metric dd { margin: 4px 0 0; font-size: 1.05rem; font-weight: 900; }
+.premium-difficulty-list { display: grid; gap: 6px; }
+
+.premium-difficulty-row {
+  display: grid;
+  grid-template-columns: minmax(90px, 1fr) auto auto;
+  gap: 8px;
+  padding: 7px 0;
+  border-top: 1px solid var(--line);
+  font-size: 0.76rem;
+}
+
+.premium-difficulty-row span { color: var(--muted); }
+.premium-achievements,
+.premium-completion-list,
+.premium-service-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+
+.premium-achievement {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 9px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.premium-achievement p { margin: 3px 0 0; color: var(--muted); font-size: 0.72rem; line-height: 1.35; }
+.premium-achievement-mark { display: grid; place-items: center; width: 34px; height: 34px; background: var(--ghost-background); border-radius: 50%; font-weight: 900; }
+.premium-achievement-state { color: var(--muted); font-size: 0.68rem; font-weight: 800; }
+.premium-achievement.is-unlocked { border-color: var(--success); }
+.premium-achievement.is-unlocked .premium-achievement-mark { color: var(--paper); background: var(--success); }
+
+.premium-completion-entry,
+.premium-service-entry,
+.premium-empty { display: grid; gap: 3px; padding: 9px 0; border-top: 1px solid var(--line); }
+.premium-completion-entry span,
+.premium-empty { color: var(--muted); font-size: 0.74rem; }
+.premium-network-status { min-height: 1.4em; margin: 10px 0; color: var(--muted); font-size: 0.8rem; font-weight: 700; }
+.premium-network-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.premium-inline-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 8px; }
+.premium-service-list { margin-top: 10px; }
+.premium-network-card .button:disabled { cursor: not-allowed; }
+
+@media (max-width: 680px) {
+  .premium-dialog { width: 100%; }
+  .premium-content,
+  .premium-network-grid { grid-template-columns: 1fr; }
+  .premium-profile-form { grid-template-columns: auto minmax(0, 1fr); }
+  .premium-profile-form .premium-field { grid-column: 2; }
+  .premium-profile-form .button { grid-column: 1 / -1; }
+  .premium-inline-status { grid-column: 1 / -1; }
+  .premium-summary-grid { grid-template-columns: 1fr 1fr; }
+  .premium-difficulty-row { grid-template-columns: 1fr; gap: 2px; }
+  .premium-achievement { grid-template-columns: auto minmax(0, 1fr); }
+  .premium-achievement-state { grid-column: 2; }
+  .premium-inline-form { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 380px) {
+  .premium-summary-grid { grid-template-columns: 1fr; }
+  .premium-profile-form { grid-template-columns: 1fr; }
+  .premium-profile-form .premium-field,
+  .premium-profile-form .button { grid-column: 1; }
+}
+
+@media (forced-colors: active) {
+  .premium-avatar,
+  .premium-achievement.is-unlocked { forced-color-adjust: auto; border-width: 2px; }
+  .premium-achievement.is-unlocked .premium-achievement-mark { color: ButtonText; background: ButtonFace; border: 2px solid ButtonText; }
+}
+
+@media print {
+  .premium-case-timer,
+  .premium-dialog { display: none !important; }
+}

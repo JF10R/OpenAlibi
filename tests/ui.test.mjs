@@ -10,6 +10,9 @@ const files = Object.fromEntries(await Promise.all([
   ['challenge', 'src/challenge.js'],
   ['featureConfig', 'src/feature-config.js'],
   ['featureHost', 'src/feature-host.js'],
+  ['premiumFeature', 'src/premium-feature.js'],
+  ['premiumI18n', 'src/premium-i18n.js'],
+  ['premiumStyles', 'src/premium.css'],
   ['i18n', 'src/i18n.js'],
   ['objectVisuals', 'src/object-visuals.js'],
   ['styles', 'styles.css'],
@@ -82,7 +85,8 @@ assert.match(files.app, /boardVictimRule/, 'indirect victim placement rules must
 assert.match(files.app, /publishFeatureEvent\('case-solved'/, 'case completion must expose a stable lifecycle event');
 assert.match(files.app, /publishFeatureEvent\('hint-used'/, 'assistance tracking must expose a stable lifecycle event');
 assert.match(files.app, /publishFeatureEvent\('solution-revealed'/, 'reveals must expose a stable lifecycle event');
-assert.doesNotMatch(files.featureConfig, /premium|leaderboard|achievement/i, 'the public feature configuration must remain premium-free');
+assert.match(files.featureConfig, /premiumFeature/, 'the local build must register premium through the feature boundary');
+assert.doesNotMatch(files.app, /premium|leaderboard|achievement/i, 'the public app shell must stay decoupled from premium');
 assert.match(files.challenge, /createChallengeUrl/, 'shared challenges must use a canonical serializer');
 assert.match(files.challenge, /parseChallengeUrl/, 'shared challenge settings must be validated before generation');
 assert.match(files.app, /serializeDraft/, 'progress persistence must use the validated draft serializer');

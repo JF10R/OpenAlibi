@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import { APP_FEATURES } from '../src/feature-config.js';
 import { createFeatureHost } from '../src/feature-host.js';
+import { premiumFeature } from '../src/premium-feature.js';
 
-assert.deepEqual(APP_FEATURES, [], 'the public build must not enable private features');
+assert.deepEqual(APP_FEATURES, [premiumFeature], 'the local premium build must enable its isolated feature');
 assert.ok(Object.isFrozen(APP_FEATURES), 'feature configuration must be immutable');
 
 const received = [];
